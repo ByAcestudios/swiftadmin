@@ -1,31 +1,36 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Plus, Filter, Trash2 } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
-// import Pagination from '@/components/ui/pagination';
-// import CreateBikeForm from '@/components/bikes/CreateBikeForm';
-// import BikeDetailsModal from '@/components/bikes/BikeDetailsModal';
 import { Checkbox } from '@/components/ui/checkbox';
 import Pagination from '../orders/pagination';
 import CreateBikeForm from './CreateBikeForm';
 import BikeDetailsModal from './BikeDetailsModal';
-
-// Demo data for bikes
-const demoBikes = [
-  { id: 1, name: 'Susuki', color: 'Black', engineNumber: '2901HJ291', plateNumber: 'KJA192AJ', rider: 'Jomiloju Aramide', datePurchased: '20 Nov 2020', duration: '9 months', servicingDate: '27 Jun 2021', history: [{ riderName: 'Samad Kunle', duration: '14 months' }, { riderName: 'Dekunle Abraham', duration: '4 months' }, { riderName: 'John Festus', duration: '18 months' }] },
-  // Add more demo bikes as needed
-];
+import api from '@/lib/api';
 
 const BikesPage = () => {
-  const [bikes, setBikes] = useState(demoBikes); // This will hold the bikes data
-  const [searchTerm, setSearchTerm] = useState(''); // This will hold the search term
-  const [currentPage, setCurrentPage] = useState(1); // This will hold the current page
-  const [isCreatingBike, setIsCreatingBike] = useState(false); // This will handle the create bike form visibility
-  const [selectedBike, setSelectedBike] = useState(null); // This will hold the selected bike for details modal
-  const bikesPerPage = 7; // Number of bikes per page
+  const [bikes, setBikes] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isCreatingBike, setIsCreatingBike] = useState(false);
+  const [selectedBikeId, setSelectedBikeId] = useState(null);
+  const bikesPerPage = 7;
+
+  useEffect(() => {
+    const fetchBikes = async () => {
+      try {
+        const response = await api.get('/api/bikes');
+        setBikes(response.data);
+      } catch (error) {
+        console.error('Error fetching bikes:', error);
+      }
+    };
+
+    fetchBikes();
+  }, []);
 
   const filteredBikes = bikes.filter(bike =>
     bike.name.toLowerCase().includes(searchTerm.toLowerCase())
@@ -49,12 +54,12 @@ const BikesPage = () => {
     setBikes(bikes.filter(bike => bike.id !== id));
   };
 
-  const handleOpenBikeDetails = (bike) => {
-    setSelectedBike(bike);
+  const handleOpenBikeDetails = (bikeId) => {
+    setSelectedBikeId(bikeId);
   };
 
   const handleCloseBikeDetails = () => {
-    setSelectedBike(null);
+    setSelectedBikeId(null);
   };
 
   return (
@@ -62,12 +67,12 @@ const BikesPage = () => {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">Bikes</h1>
-          <p className="text-sm text-gray-600">All bikes are shown here.</p>
+          <h1 className="text-2xl font-bold text-gray-800">Vehicles</h1>
+          <p className="text-sm text-gray-600">All vehicles are shown here.</p>
         </div>
         <Button onClick={handleCreateBike} className="bg-[#733E70] hover:bg-[#62275F] text-white">
           <Plus className="w-5 h-5 mr-2" />
-          Add Bike
+          Add Vehicle
         </Button>
       </div>
 
@@ -80,12 +85,12 @@ const BikesPage = () => {
         </div>
       ) : (
         <>
-          {/* Bike Summary */}
+          {/* Vehicle Summary */}
           <div className="bg-white shadow-md rounded-lg p-6">
             <div className="flex justify-between items-center mb-4">
               <Input
                 type="text"
-                placeholder="Search Bikes..."
+                placeholder="Search Vehicles..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-1/3"
@@ -120,15 +125,15 @@ const BikesPage = () => {
               </Popover>
             </div>
 
-            {/* Bikes Table */}
+            {/* Vehicles Table */}
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name of Bike</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name of Vehicle</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Color</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Engine Number</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Vehicle Type</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Plate Number</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rider</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
@@ -136,12 +141,20 @@ const BikesPage = () => {
                 {currentBikes.map((bike) => (
                   <tr key={bike.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{bike.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bike.color}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bike.engineNumber}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <div className="flex items-center">
+                        <span
+                          className="inline-block w-4 h-4 mr-2 rounded-full"
+                          style={{ backgroundColor: bike.color }}
+                        ></span>
+                        {bike.color}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bike.vehicleType}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bike.plateNumber}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bike.rider}</td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{bike.status}</td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <Button variant="outline" onClick={() => handleOpenBikeDetails(bike)}>
+                      <Button variant="outline" onClick={() => handleOpenBikeDetails(bike.id)}>
                         Details
                       </Button>
                       <Button variant="outline" onClick={() => handleDeleteBike(bike.id)}>
@@ -156,7 +169,7 @@ const BikesPage = () => {
             {/* Pagination */}
             <div className="flex justify-between items-center mt-4">
               <p className="text-sm text-gray-600">
-                Showing {indexOfFirstBike + 1} to {indexOfLastBike} of {filteredBikes.length} bikes
+                Showing {indexOfFirstBike + 1} to {indexOfLastBike} of {filteredBikes.length} vehicles
               </p>
               <Pagination
                 currentPage={currentPage}
@@ -168,8 +181,8 @@ const BikesPage = () => {
         </>
       )}
 
-      {selectedBike && (
-        <BikeDetailsModal bike={selectedBike} onClose={handleCloseBikeDetails} />
+      {selectedBikeId && (
+        <BikeDetailsModal bikeId={selectedBikeId} onClose={handleCloseBikeDetails} />
       )}
     </div>
   );

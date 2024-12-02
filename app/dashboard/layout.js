@@ -4,12 +4,19 @@ import { useState } from 'react';
 import Sidebar from './sidebar';
 import Navbar from './navbar';
 
+import { AuthProvider } from '@/contexts/AuthContext';
+import ProtectedRoute from '@/components/protectedRoutes';
+import { Toaster } from "@/components/ui/toaster"
+
+
 export default function DashboardLayout({ children }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
   const toggleSidebar = () => setIsSidebarOpen(!isSidebarOpen);
 
   return (
+    <AuthProvider>
+      <ProtectedRoute>
     <div className="flex flex-col min-h-screen bg-gray-100">
       <Navbar toggleSidebar={toggleSidebar} />
       <div className="flex flex-1 overflow-hidden">
@@ -28,6 +35,10 @@ export default function DashboardLayout({ children }) {
           ></div>
         )}
       </div>
+      <Toaster />
+
     </div>
+    </ProtectedRoute>
+    </AuthProvider>
   )
 }

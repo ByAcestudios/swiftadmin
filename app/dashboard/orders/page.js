@@ -1,198 +1,342 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Plus, Filter } from 'lucide-react';
-import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Checkbox } from "@/components/ui/checkbox";
-import Pagination from './pagination';
-import OrderDetailsModal from './OrderDetailsModal';
-import CreateOrderForm from './CreateOrderForm';
+import { Input } from "@/components/ui/input";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Eye, Edit, Trash2, UserPlus } from 'lucide-react';
 
-// Demo data
-const demoOrders = [
-  {
-    id: 1,
-    name: 'Olamilekan John',
-    date: '29 Jun 2021',
-    paymentType: 'Cash',
-    amount: '₦495.00',
-    address: '28, Jimoh Brown road, Lagos',
-    status: 'In progress',
-  },
-  {
-    id: 2,
-    name: 'Olamilekan John',
-    date: '29 Jun 2021',
-    paymentType: 'Cash',
-    amount: '₦495.00',
-    address: '28, Jimoh Brown road, Lagos',
-    status: 'Delivered',
-  },
-  // Add more demo orders as needed
-];
+import { useToast } from "@/hooks/use-toast"
+import CreateOrderForm from './CreateOrderForm';
+import OrderActions from './OrderActions';
+import OrderDetails from './OrderDetails';
+import AssignRiderForm from './AssignRiderForm';
+import EditOrderForm from './EditOrderForm';
+import api from '@/lib/api';
+
+const ITEMS_PER_PAGE = 10; // Adjust this value as needed
 
 const OrdersPage = () => {
-  const [orders, setOrders] = useState(demoOrders); // This will hold the orders data
-  const [filter, setFilter] = useState(''); // This will hold the current filter
-  const [searchTerm, setSearchTerm] = useState(''); // This will hold the search term
-  const [currentPage, setCurrentPage] = useState(1); // This will hold the current page
-  const [selectedOrder, setSelectedOrder] = useState(null); // This will hold the selected order for editing
-  const [isCreatingOrder, setIsCreatingOrder] = useState(false); // This will handle the create order form visibility
-  const ordersPerPage = 7; // Number of orders per page
+  const [orders, setOrders] = useState([]);
+  const { toast } = useToast()
 
-  const filteredOrders = orders.filter(order =>
-    order.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.date.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.paymentType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.amount.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.address.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    order.status.toLowerCase().includes(searchTerm.toLowerCase())
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const router = useRouter();
+
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isAssignRiderModalOpen, setIsAssignRiderModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetchOrders();
+  }, []);
+
+  const fetchOrders = async () => {
+    try {
+      setLoading(true);
+      const response = await api.get('/api/orders');
+      setOrders(response.data);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch orders. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateOrder = async (orderData) => {
+    try {
+      const response = await api.post('/api/orders', orderData);
+      toast({
+        title: "Success",
+        description: "Order created successfully!",
+      });
+      fetchOrders(); // Refresh the orders list
+      setIsCreateModalOpen(false); // Close the modal
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to create order. Please try again.",
+        variant: "destructive",
+      });
+      throw error; // Rethrow the error so the form can handle it if needed
+    }
+  };
+
+  const handleDeleteOrder = async (orderId) => {
+    if (window.confirm("Are you sure you want to delete this order?")) {
+      try {
+        await api.delete(`/api/orders/${orderId}`);
+        toast({
+          title: "Success",
+          description: "Order deleted successfully!",
+        });
+        fetchOrders();
+      } catch (error) {
+        toast({
+          title: "Error",
+          description: error.response?.data?.message || "Failed to delete order. Please try again.",
+          variant: "destructive",
+        });
+      }
+    }
+  };
+
+  const handleAssignRiderSubmit = async (riderId) => {
+    try {
+      await api.patch(`/api/orders/${selectedOrder.id}/reassign`, { riderId });
+      toast({
+        title: "Success",
+        description: "Rider assigned successfully!",
+      });
+      setIsAssignRiderModalOpen(false);
+      fetchOrders(); // Refresh the orders list
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to assign rider. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const formatStatus = (status) => {
+    const statusMap = {
+      'in_transit': 'In Transit',
+      'delivered': 'Delivered',
+      'pending': 'Pending',
+      'cancelled': 'Cancelled'
+    };
+    return statusMap[status] || status;
+  };
+
+  const formatOrderType = (type) => {
+    const typeMap = {
+      'nextDay': 'Next Day',
+      'sameDay': 'Same Day',
+      'instant': 'Instant',
+
+    };
+    return typeMap[type] || type;
+  };
+
+  const getStatusColor = (status) => {
+    const statusMap = {
+      'in_transit': 'bg-blue-500',
+      'delivered': 'bg-green-500',
+      'pending': 'bg-yellow-500',
+      'cancelled': 'bg-red-500'
+    };
+    return statusMap[status] || 'bg-gray-500';
+  };
+
+  const truncateUserId = (userId) => {
+    return userId.slice(0, 8) + '...';
+  };
+
+  // Client-side pagination
+  const pageCount = Math.ceil(orders.length / ITEMS_PER_PAGE);
+  const paginatedOrders = orders.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
   );
 
-  const indexOfLastOrder = currentPage * ordersPerPage;
-  const indexOfFirstOrder = indexOfLastOrder - ordersPerPage;
-  const currentOrders = filteredOrders.slice(indexOfFirstOrder, indexOfLastOrder);
-
-  const paginate = (pageNumber) => setCurrentPage(pageNumber);
+  const handleViewDetails = (order) => {
+    setSelectedOrder(order);
+    setIsViewModalOpen(true);
+  };
 
   const handleEditOrder = (order) => {
     setSelectedOrder(order);
+    setIsEditModalOpen(true);
   };
 
-  const handleCloseModal = () => {
-    setSelectedOrder(null);
+  const handleAssignRider = (order) => {
+    setSelectedOrder(order);
+    setIsAssignRiderModalOpen(true);
   };
 
-  const handleCreateOrder = () => {
-    setIsCreatingOrder(true);
-  };
-
-  const handleCloseCreateOrder = () => {
-    setIsCreatingOrder(false);
+  const handleUpdateOrder = async (updatedOrder) => {
+    try {
+      await api.put(`/api/orders/${updatedOrder.id}`, updatedOrder);
+      toast({
+        title: "Success",
+        description: "Order updated successfully!",
+      });
+      setIsEditModalOpen(false);
+      fetchOrders();
+    } catch (error) {
+      console.error('Failed to update order:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to update order. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800">Orders</h1>
-          <p className="text-sm text-gray-600">All orders are shown here.</p>
-        </div>
-        <Button onClick={handleCreateOrder} className="bg-[#733E70] hover:bg-[#62275F] text-white">
-          <Plus className="w-5 h-5 mr-2" />
-          Create Order
-        </Button>
-      </div>
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Orders Management</h1>
+      
+      <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+        <DialogTrigger asChild>
+          <Button className="mb-4" onClick={() => setIsCreateModalOpen(true)}>Create New Order</Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Create New Order</DialogTitle>
+          </DialogHeader>
+          <CreateOrderForm 
+            onSubmit={handleCreateOrder} 
+            onClose={() => setIsCreateModalOpen(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
-      {isCreatingOrder ? (
-        <div className="bg-white shadow-md rounded-lg p-6">
-          <CreateOrderForm />
-          <Button onClick={handleCloseCreateOrder} className="mt-4 bg-gray-500 hover:bg-gray-600 text-white rounded-md p-2 text-sm">
-            Cancel
-          </Button>
-        </div>
+      {loading ? (
+        <p>Loading orders...</p>
       ) : (
         <>
-          {/* Order Summary */}
-          <div className="bg-white shadow-md rounded-lg p-6">
-            <div className="flex justify-between items-center mb-4">
-              <input
-                type="text"
-                placeholder="Search Orders..."
-                className="border border-gray-300 rounded-md p-2 w-full max-w-xs"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-              <Popover>
-                <PopoverTrigger asChild>
-                  <Button variant="outline" className="ml-4">
-                    <Filter className="w-5 h-5 mr-2" />
-                    Filter
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent className="w-48 p-4">
-                  <div className="flex flex-col space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox id="date" />
-                      <label htmlFor="date" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Date</label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox id="orderType" />
-                      <label htmlFor="orderType" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Order Type</label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox id="orderStatus" />
-                      <label htmlFor="orderStatus" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Order Status</label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox id="businessCategory" />
-                      <label htmlFor="businessCategory" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">Business Category</label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox id="pickup" />
-                      <label htmlFor="pickup" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">45 mins pickup</label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox id="delivery" />
-                      <label htmlFor="delivery" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">45 mins delivery</label>
-                    </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-
-            {/* Orders Table */}
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Address</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {currentOrders.map((order) => (
-                  <tr key={order.id}>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{order.name}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.date}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.paymentType}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.amount}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.address}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{order.status}</td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                      <Button variant="outline" onClick={() => handleEditOrder(order)}>
-                        Edit
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Order Number</TableHead>
+                <TableHead>Sender</TableHead>
+                <TableHead>Order Type</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {paginatedOrders.map((order) => (
+                <TableRow key={order.id}>
+                  <TableCell>
+                    <Button 
+                      variant="link" 
+                      onClick={() => handleViewDetails(order)}
+                    >
+                      {order.orderNumber}
+                    </Button>
+                  </TableCell>
+                  <TableCell>{order.senderName || truncateUserId(order.userId)}</TableCell>
+                  <TableCell>{formatOrderType(order.orderType)}</TableCell>
+                  <TableCell>
+                    <Badge className={`${getStatusColor(order.orderStatus)} text-white`}>
+                      {formatStatus(order.orderStatus)}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex space-x-2">
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => handleViewDetails(order)}
+                      >
+                        <Eye className="h-4 w-4" />
                       </Button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-
-            {/* Pagination */}
-            <div className="flex justify-between items-center mt-4">
-              <p className="text-sm text-gray-600">
-                Showing {indexOfFirstOrder + 1} to {indexOfLastOrder} of {filteredOrders.length} orders
-              </p>
-              <Pagination
-                currentPage={currentPage}
-                totalPages={Math.ceil(filteredOrders.length / ordersPerPage)}
-                onPageChange={paginate}
-              />
-            </div>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => handleEditOrder(order)}
+                      >
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => handleDeleteOrder(order.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => handleAssignRider(order)}
+                      >
+                        <UserPlus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+          
+          {/* Simple pagination controls */}
+          <div className="flex justify-between items-center mt-4">
+            <Button
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+            >
+              Previous
+            </Button>
+            <span>Page {currentPage} of {pageCount}</span>
+            <Button
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, pageCount))}
+              disabled={currentPage === pageCount}
+            >
+              Next
+            </Button>
           </div>
         </>
       )}
 
       {selectedOrder && (
-        <OrderDetailsModal order={selectedOrder} onClose={handleCloseModal} />
+        <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Order Details</DialogTitle>
+            </DialogHeader>
+            <OrderDetails 
+              order={selectedOrder} 
+              onUpdate={() => {
+                fetchOrders();
+                setSelectedOrder(null);
+              }}
+              onClose={() => setSelectedOrder(null)}
+            />
+          </DialogContent>
+        </Dialog>
       )}
+
+      {selectedOrder && (
+        <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Order</DialogTitle>
+            </DialogHeader>
+            <EditOrderForm 
+              order={selectedOrder}
+              onSubmit={handleUpdateOrder}
+              onCancel={() => setIsEditModalOpen(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
+
+      <Dialog open={isAssignRiderModalOpen} onOpenChange={setIsAssignRiderModalOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Assign Rider</DialogTitle>
+          </DialogHeader>
+          {selectedOrder && (
+            <AssignRiderForm 
+              orderId={selectedOrder.id}
+              onSubmit={handleAssignRiderSubmit}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

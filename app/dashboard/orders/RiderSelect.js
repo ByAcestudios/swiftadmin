@@ -1,59 +1,34 @@
-import { useState } from 'react';
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+// components/RiderSelect.js
+import { useState, useEffect } from 'react';
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
+import api from '@/lib/api';
 
-// Demo data for riders
-const demoRiders = [
-  { id: 1, fullName: 'John Doe', phoneNumber: '+234 123 456 7890', plateNumber: 'ABC123' },
-  { id: 2, fullName: 'Jane Smith', phoneNumber: '+234 098 765 4321', plateNumber: 'XYZ789' },
-  // Add more demo riders as needed
-];
+const RiderSelect = ({ onSelect }) => {
+  const [riders, setRiders] = useState([]);
 
-const RiderSelect = ({ onRiderChange }) => {
-  const [selectedRider, setSelectedRider] = useState(null);
-
-  const handleRiderChange = (riderId) => {
-    const rider = demoRiders.find(r => r.id === parseInt(riderId));
-    setSelectedRider(rider);
-    onRiderChange(rider);
-  };
+  useEffect(() => {
+    const fetchRiders = async () => {
+      try {
+        const response = await api.get('/api/riders');
+        setRiders(response.data);
+      } catch (error) {
+        console.error('Failed to fetch riders:', error);
+      }
+    };
+    fetchRiders();
+  }, []);
 
   return (
-    <div className="flex flex-col space-y-2">
-      <Select onValueChange={handleRiderChange}>
-        <SelectTrigger className="border border-gray-300 rounded-md p-2 text-sm">
-          <SelectValue placeholder="Select Rider" />
-        </SelectTrigger>
-        <SelectContent>
-          {demoRiders.map(rider => (
-            <SelectItem key={rider.id} value={rider.id.toString()}>
-              {rider.fullName}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      {selectedRider && (
-        <div className="flex flex-col space-y-2">
-          <input
-            type="text"
-            value={selectedRider.fullName}
-            readOnly
-            className="border border-gray-300 rounded-md p-2 text-sm"
-          />
-          <input
-            type="text"
-            value={selectedRider.phoneNumber}
-            readOnly
-            className="border border-gray-300 rounded-md p-2 text-sm"
-          />
-          <input
-            type="text"
-            value={selectedRider.plateNumber}
-            readOnly
-            className="border border-gray-300 rounded-md p-2 text-sm"
-          />
-        </div>
-      )}
-    </div>
+    <Select onValueChange={onSelect}>
+      <SelectTrigger>
+        <SelectValue placeholder="Reassign to Rider" />
+      </SelectTrigger>
+      <SelectContent>
+        {riders.map((rider) => (
+          <SelectItem key={rider.id} value={rider.id}>{rider.firstName.toString()} {rider.lastName.toString()}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 };
 

@@ -7,8 +7,24 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useAuth } from '@/contexts/AuthContext';
+import { useEffect, useState } from 'react';
 
 const Navbar = ({ toggleSidebar }) => {
+  const { logout, user } = useAuth();
+  const [userName, setUserName] = useState('User');
+
+  useEffect(() => {
+    if (user) {
+      setUserName(`${user.firstName} ${user.lastName}`);
+    }
+  }, [user]);
+
+  const handleLogout = () => {
+    logout();
+    // The router.push('/login') is handled in the AuthContext logout function
+  };
+
   return (
     <nav className="bg-white shadow-md w-full fixed top-0 left-0 z-50">
       <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
@@ -32,14 +48,14 @@ const Navbar = ({ toggleSidebar }) => {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="flex items-center space-x-2">
                   <div className="w-8 h-8 rounded-full bg-gray-300"></div>
-                  <span className="hidden md:inline">John Doe</span>
+                  <span className="hidden md:inline">{userName}</span>
                   <ChevronDown className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem>Profile</DropdownMenuItem>
                 <DropdownMenuItem>Settings</DropdownMenuItem>
-                <DropdownMenuItem>Logout</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

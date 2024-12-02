@@ -1,15 +1,22 @@
+// components/OrderActions.js
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import RiderSelect from './RiderSelect';
 
-const OrderActions = ({ onAccept, onReject }) => {
+const OrderActions = ({ order, onView, onDelete, onReassign }) => {
   return (
-    <div className="flex justify-end space-x-3 mt-6">
-      <Button onClick={onAccept} className="bg-green-500 hover:bg-green-600 text-white">
-        Accept Order
-      </Button>
-      <Button onClick={onReject} className="bg-red-500 hover:bg-red-600 text-white">
-        Reject Order
-      </Button>
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant="ghost">Actions</Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem onClick={onView}>View Details</DropdownMenuItem>
+        <DropdownMenuItem onClick={onDelete}>Delete</DropdownMenuItem>
+        <DropdownMenuItem>
+          <RiderSelect onSelect={(riderId) => onReassign(riderId)} />
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 };
 

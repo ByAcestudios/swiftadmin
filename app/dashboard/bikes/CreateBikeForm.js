@@ -1,82 +1,74 @@
+'use client';
+
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Calendar } from "@/components/ui/calendar";
 import { format } from "date-fns";
-import { CalendarIcon, Plus, X } from "lucide-react";
-import { ChromePicker } from 'react-color';
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-
-// Demo data for riders
-const demoRiders = [
-  { value: 'Jomiloju Aramide', label: 'Jomiloju Aramide' },
-  { value: 'Mayowa', label: 'Mayowa' },
-  // Add more demo riders as needed
-];
+import { CalendarIcon } from "lucide-react";
+import api from '@/lib/api';
 
 const CreateBikeForm = () => {
+  const router = useRouter();
   const [bikeDetails, setBikeDetails] = useState({
     name: '',
-    color: '#000000',
+    vehicleType: 'bike', // Default vehicle type
+    model: '',
+    color: '#000000', // Default color
     plateNumber: '',
-    nextServicingDate: new Date(),
+    registrationNumber: '',
     dateOfPurchase: new Date(),
-    duration: '',
-    history: [{ riderName: '', duration: '' }],
+    nextServiceDate: new Date(),
   });
+
+  const [message, setMessage] = useState(null);
+  const [messageType, setMessageType] = useState(null); // 'success' or 'error'
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setBikeDetails(prevDetails => ({ ...prevDetails, [name]: value }));
   };
 
-  const handleColorChange = (color) => {
-    setBikeDetails(prevDetails => ({ ...prevDetails, color: color.hex }));
-  };
-
   const handleDateChange = (name, date) => {
     setBikeDetails(prevDetails => ({ ...prevDetails, [name]: date }));
   };
 
-  const handleHistoryChange = (index, e) => {
-    const { name, value } = e.target;
-    const newHistory = [...bikeDetails.history];
-    newHistory[index][name] = value;
-    setBikeDetails(prevDetails => ({ ...prevDetails, history: newHistory }));
-  };
-
-  const handleRiderChange = (index, value) => {
-    const newHistory = [...bikeDetails.history];
-    newHistory[index].riderName = value;
-    setBikeDetails(prevDetails => ({ ...prevDetails, history: newHistory }));
-  };
-
-  const addHistoryEntry = () => {
-    setBikeDetails(prevDetails => ({
-      ...prevDetails,
-      history: [...prevDetails.history, { riderName: '', duration: '' }]
-    }));
-  };
-
-  const removeHistoryEntry = (index) => {
-    const newHistory = bikeDetails.history.filter((_, i) => i !== index);
-    setBikeDetails(prevDetails => ({ ...prevDetails, history: newHistory }));
-  };
-
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Bike Created:', bikeDetails);
-    // Add logic to handle bike creation
+    try {
+      const payload = {
+        ...bikeDetails,
+        dateOfPurchase: format(bikeDetails.dateOfPurchase, 'yyyy-MM-dd'),
+        nextServiceDate: format(bikeDetails.nextServiceDate, 'yyyy-MM-dd'),
+      };
+      await api.post('/api/bikes', payload);
+      setMessage('Bike created successfully!');
+      setMessageType('success');
+      // Redirect to bike list after a short delay
+      setTimeout(() => {
+        router.push('/dashboard/bikes');
+      }, 2000);
+    } catch (error) {
+      const errorMessage = error.response?.data?.error || 'Error creating bike';
+      setMessage(errorMessage);
+      setMessageType('error');
+    }
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6 max-w-2xl mx-auto">
-      <h2 className="text-3xl font-bold text-center text-gray-800">Bike Information</h2>
+      <h2 className="text-3xl font-bold text-center text-gray-800">Vehicle Information</h2>
+      {message && (
+        <div className={`p-4 mb-4 text-sm ${messageType === 'success' ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100'} rounded-lg`} role="alert">
+          {message}
+        </div>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="name">Bike Name</Label>
+          <Label htmlFor="name">Vehicle Name</Label>
           <Input
             id="name"
             name="name"
@@ -86,20 +78,40 @@ const CreateBikeForm = () => {
           />
         </div>
         <div className="space-y-2">
+          <Label htmlFor="vehicleType">Vehicle Type</Label>
+          <select
+            id="vehicleType"
+            name="vehicleType"
+            value={bikeDetails.vehicleType}
+            onChange={handleChange}
+            required
+            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+          >
+            <option value="bike">Bike</option>
+            <option value="van">Van</option>
+            <option value="car">Car</option>
+          </select>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="model">Model</Label>
+          <Input
+            id="model"
+            name="model"
+            value={bikeDetails.model}
+            onChange={handleChange}
+            required
+          />
+        </div>
+        <div className="space-y-2">
           <Label htmlFor="color">Color</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start text-left font-normal">
-                <div className="flex items-center">
-                  <div className="w-6 h-6 rounded-full mr-2" style={{ backgroundColor: bikeDetails.color }}></div>
-                  {bikeDetails.color}
-                </div>
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <ChromePicker color={bikeDetails.color} onChangeComplete={handleColorChange} />
-            </PopoverContent>
-          </Popover>
+          <Input
+            type="color"
+            id="color"
+            name="color"
+            value={bikeDetails.color}
+            onChange={handleChange}
+            required
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="plateNumber">Plate Number</Label>
@@ -112,30 +124,21 @@ const CreateBikeForm = () => {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="nextServicingDate">Next Servicing Date</Label>
-          <Popover>
-            <PopoverTrigger asChild>
-              <Button variant="outline" className="w-full justify-start text-left font-normal">
-                {bikeDetails.nextServicingDate ? format(bikeDetails.nextServicingDate, 'dd MMM yyyy') : 'Select Date'}
-                <CalendarIcon className="ml-2 h-4 w-4" />
-              </Button>
-            </PopoverTrigger>
-            <PopoverContent className="w-auto p-0">
-              <Calendar
-                mode="single"
-                selected={bikeDetails.nextServicingDate}
-                onSelect={(date) => handleDateChange('nextServicingDate', date)}
-                initialFocus
-              />
-            </PopoverContent>
-          </Popover>
+          <Label htmlFor="registrationNumber">Registration Number</Label>
+          <Input
+            id="registrationNumber"
+            name="registrationNumber"
+            value={bikeDetails.registrationNumber}
+            onChange={handleChange}
+            required
+          />
         </div>
         <div className="space-y-2">
           <Label htmlFor="dateOfPurchase">Date of Purchase</Label>
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline" className="w-full justify-start text-left font-normal">
-                {bikeDetails.dateOfPurchase ? format(bikeDetails.dateOfPurchase, 'dd MMM yyyy') : 'Select Date'}
+                {bikeDetails.dateOfPurchase ? format(bikeDetails.dateOfPurchase, 'yyyy-MM-dd') : 'Select Date'}
                 <CalendarIcon className="ml-2 h-4 w-4" />
               </Button>
             </PopoverTrigger>
@@ -150,58 +153,33 @@ const CreateBikeForm = () => {
           </Popover>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="duration">Duration</Label>
-          <Input
-            id="duration"
-            name="duration"
-            value={bikeDetails.duration}
-            onChange={handleChange}
-            required
-          />
+          <Label htmlFor="nextServiceDate">Next Service Date</Label>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full justify-start text-left font-normal">
+                {bikeDetails.nextServiceDate ? format(bikeDetails.nextServiceDate, 'yyyy-MM-dd') : 'Select Date'}
+                <CalendarIcon className="ml-2 h-4 w-4" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0">
+              <Calendar
+                mode="single"
+                selected={bikeDetails.nextServiceDate}
+                onSelect={(date) => handleDateChange('nextServiceDate', date)}
+                initialFocus
+              />
+            </PopoverContent>
+          </Popover>
         </div>
       </div>
-
-      <h3 className="text-xl font-bold text-gray-800">History</h3>
-      {bikeDetails.history.map((entry, index) => (
-        <div key={index} className="grid grid-cols-1 md:grid-cols-2 gap-4 items-center">
-          <div className="space-y-2">
-            <Label htmlFor={`riderName-${index}`}>Rider's Name</Label>
-            <Select onValueChange={(value) => handleRiderChange(index, value)}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select Rider" />
-              </SelectTrigger>
-              <SelectContent>
-                {demoRiders.map((rider) => (
-                  <SelectItem key={rider.value} value={rider.value}>
-                    {rider.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor={`duration-${index}`}>Duration</Label>
-            <Input
-              id={`duration-${index}`}
-              name="duration"
-              value={entry.duration}
-              onChange={(e) => handleHistoryChange(index, e)}
-              required
-            />
-          </div>
-          <Button variant="outline" onClick={() => removeHistoryEntry(index)} className="text-red-500">
-            <X className="w-5 h-5" />
-          </Button>
-        </div>
-      ))}
-      <Button variant="outline" onClick={addHistoryEntry} className="flex items-center">
-        <Plus className="w-5 h-5 mr-2" />
-        Add New
-      </Button>
-
-      <Button type="submit" className="w-full bg-[#733E70] hover:bg-[#62275F] text-white">
-        Save Changes
-      </Button>
+      <div className="flex justify-between">
+        <Button type="button" onClick={() => router.push('/dashboard/bikes')} className="bg-gray-500 hover:bg-gray-600 text-white">
+          Go Back
+        </Button>
+        <Button type="submit" className="bg-[#733E70] hover:bg-[#62275F] text-white">
+          Save Changes
+        </Button>
+      </div>
     </form>
   );
 };
