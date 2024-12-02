@@ -293,14 +293,14 @@ const SettingsPage = () => {
         <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4" role="alert">
           <p className="font-bold">Instructions for updating settings:</p>
           <ul className="list-disc list-inside">
-            <li>Click the "Edit" button next to a setting to modify its value.</li>
+            <li>Click the &quot;Edit&quot; button next to a setting to modify its value.</li>
             <li>For item categories, you can add or remove categories when editing.</li>
-            <li>For operating hours, use the time inputs to set the "from" and "to" times.</li>
-            <li>For rider assignment, choose between 'Automatic' (system assigns riders) or 'Manual' (administrators assign riders).</li>
-            <li>After making changes, click "Save" to update the setting.</li>
-            <li>Use the "Create New Setting" form at the top to add a new setting.</li>
-            <li>Some settings are essential for the app's functionality and cannot be deleted. These are marked as "Essential".</li>
-            <li>The "Bulk Update All Settings" button at the bottom will save all changes at once.</li>
+            <li>For operating hours, use the time inputs to set the &quot;from&quot; and &quot;to&quot; times.</li>
+            <li>For rider assignment, choose between &apos;Automatic&apos; (system assigns riders) or &apos;Manual&apos; (administrators assign riders).</li>
+            <li>After making changes, click &quot;Save&quot; to update the setting.</li>
+            <li>Use the &quot;Create New Setting&quot; form at the top to add a new setting.</li>
+            <li>Some settings are essential for the app&apos;s functionality and cannot be deleted. These are marked as &quot;Essential&quot;.</li>
+            <li>The &quot;Bulk Update All Settings&quot; button at the bottom will save all changes at once.</li>
           </ul>
         </div>
       )}
@@ -354,7 +354,7 @@ const SettingsPage = () => {
             </div>
             {setting.key === 'riderAssignment' && (
               <p className="text-sm text-gray-600 mb-2">
-                Choose how riders are assigned to orders. 'Automatic' lets the system assign riders, while 'Manual' allows administrators to assign riders manually.
+                Choose how riders are assigned to orders. &apos;Automatic&apos; lets the system assign riders, while &apos;Manual&apos; allows administrators to assign riders manually.
               </p>
             )}
             {renderSettingInput(setting)}

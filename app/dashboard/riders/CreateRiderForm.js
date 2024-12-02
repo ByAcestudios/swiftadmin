@@ -8,7 +8,8 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { CalendarIcon, Camera } from "lucide-react";
-import SuccessMessage from '@/components/SuccessMessage';
+import SuccessMessage from '@/components/successMessage';
+// import SuccessMessage from '@/components/SuccessMessage';
 
 const CreateRiderForm = () => {
   const [riderDetails, setRiderDetails] = useState({
@@ -383,7 +384,7 @@ const CreateRiderForm = () => {
       {/* Document Uploads */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-2">
-          <Label htmlFor="license">Driver's License</Label>
+          <Label htmlFor="license">Driver&apos;s License</Label>
           <Input
             id="license"
             name="license"
