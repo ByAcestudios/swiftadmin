@@ -48,9 +48,11 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('token', response.data.token);
         setIsAuthenticated(true);
         setIsAdmin(true);
+        router.push('/dashboard'); // Redirect to dashboard
         return true;
       } else {
         throw new Error('Not authorized as admin');
+        
       }
     } catch (error) {
       console.error('Login failed:', error);
