@@ -8,6 +8,8 @@ import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@
 import { Edit, Save, Info } from 'lucide-react';
 import api from '@/lib/api';
 
+/* eslint-disable react-hooks/exhaustive-deps */
+
 const SettingsPage = () => {
   const [settingsData, setSettingsData] = useState({
     config: {},
@@ -57,12 +59,27 @@ const SettingsPage = () => {
       
       console.log('Settings response:', response.data);
       
-      // Create a map of existing settings
-      const existingSettings = response.data.settings.reduce((acc, setting) => {
-        // Find the correct category from config
-        const category = Object.keys(response.data.config).find(cat => 
+      // Add defensive checks
+      if (!response.data || !response.data.config || !response.data.settings) {
+        console.error('Invalid settings response:', response.data);
+        setError('Invalid settings data received');
+        return;
+      }
+
+      // Ensure settings is an array
+      const settingsArray = Array.isArray(response.data.settings) 
+        ? response.data.settings 
+        : [];
+
+      // Create a map of existing settings with defensive checks
+      const existingSettings = settingsArray.reduce((acc, setting) => {
+        if (!setting || !setting.key) return acc;
+
+        // Find the correct category from config with null checks
+        const category = Object.keys(response.data.config || {}).find(cat => 
+          response.data.config[cat]?.settings && 
           Object.keys(response.data.config[cat].settings).includes(setting.key)
-        ) || setting.category;
+        ) || setting.category || 'general';
 
         return {
           ...acc,
@@ -73,30 +90,32 @@ const SettingsPage = () => {
         };
       }, {});
 
-      // Create settings array from config with existing values
-      const configuredSettings = Object.entries(response.data.config).flatMap(([category, { settings }]) => 
-        Object.keys(settings).map(key => ({
+      // Create settings array from config with defensive checks
+      const configuredSettings = Object.entries(response.data.config || {}).flatMap(([category, categoryData]) => {
+        if (!categoryData?.settings) return [];
+        
+        return Object.keys(categoryData.settings).map(key => ({
           key,
           value: existingSettings[key]?.value ?? null,
           category,
           isPublic: existingSettings[key]?.isPublic ?? true,
-          description: existingSettings[key]?.description ?? settings[key].description,
+          description: existingSettings[key]?.description ?? categoryData.settings[key]?.description ?? '',
           id: existingSettings[key]?.id ?? null
-        }))
-      );
+        }));
+      });
 
       // Merge with any existing settings that aren't in config
-      const additionalSettings = response.data.settings.filter(
-        setting => !configuredSettings.some(s => s.key === setting.key)
+      const additionalSettings = settingsArray.filter(
+        setting => setting && setting.key && !configuredSettings.some(s => s.key === setting.key)
       );
 
       setSettingsData({
-        config: response.data.config,
+        config: response.data.config || {},
         settings: [...configuredSettings, ...additionalSettings]
       });
     } catch (error) {
-      setError('Failed to load settings');
       console.error('Error loading settings:', error);
+      setError('Failed to load settings');
     } finally {
       setLoading(false);
       setInitialLoad(false);
@@ -356,9 +375,9 @@ const SettingsPage = () => {
           <div>
             <p className="font-semibold">Basic Steps:</p>
             <ol className="list-decimal list-inside mt-2 space-y-2">
-              <li>Click the "Edit Settings" button at the top right to start making changes</li>
+              <li>Click the &quot;Edit Settings&quot; button at the top right to start making changes</li>
               <li>Update any settings you need to change</li>
-              <li>Click "Save Changes" when you're done</li>
+              <li>Click &quot;Save Changes&quot; when you&apos;re done</li>
             </ol>
           </div>
 
@@ -401,36 +420,42 @@ const SettingsPage = () => {
           <div>
             <p className="font-semibold">Tips:</p>
             <ul className="list-disc list-inside mt-2 space-y-2">
-              <li>For lists (like cancellation reasons), click "Add Item" to add more options</li>
+              <li>For lists (like cancellation reasons), click &quot;Add Item&quot; to add more options</li>
               <li>Time ranges need both a start and end time</li>
               <li>Numbers will automatically stay within their allowed ranges</li>
               <li>Toggle switches can be turned on/off with a single click</li>
-              <li>Don't forget to save your changes!</li>
+              <li>Don&apos;t forget to save your changes!</li>
             </ul>
           </div>
 
           <div className="mt-4 bg-yellow-50 p-3 rounded">
             <p className="font-semibold text-yellow-800">⚠️ Important Note:</p>
-            <p className="text-sm text-yellow-800">Changes to these settings will affect how the entire delivery system works. If you're unsure about a setting, please check with your supervisor before making changes.</p>
+            <p className="text-sm text-yellow-800">
+              Changes to these settings will affect how the entire delivery system works. If you&apos;re unsure about a setting, please check with your supervisor before making changes.
+            </p>
           </div>
         </div>
       )}
 
       <div className="space-y-8">
-        {Object.entries(settingsData.config).map(([category, { label, settings: categorySettings }]) => (
-          <div key={category} className="bg-white p-6 rounded-lg shadow-md space-y-4">
-            <h2 className="text-xl font-semibold">{label}</h2>
-            <div className="grid gap-6">
-              {Object.entries(categorySettings).map(([key, config]) => (
-                <div key={key} className="space-y-2">
-                  <Label className="font-medium">{config.label}</Label>
-                  <p className="text-sm text-gray-500">{config.description}</p>
-                  {renderSettingInput(category, key)}
-                </div>
-              ))}
+        {Object.entries(settingsData.config || {}).map(([category, categoryData]) => {
+          if (!categoryData?.settings) return null;
+          
+          return (
+            <div key={category} className="bg-white p-6 rounded-lg shadow-md space-y-4">
+              <h2 className="text-xl font-semibold">{categoryData.label || category}</h2>
+              <div className="grid gap-6">
+                {Object.entries(categoryData.settings).map(([key, config]) => (
+                  <div key={key} className="space-y-2">
+                    <Label className="font-medium">{config?.label || key}</Label>
+                    <p className="text-sm text-gray-500">{config?.description}</p>
+                    {renderSettingInput(category, key)}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
