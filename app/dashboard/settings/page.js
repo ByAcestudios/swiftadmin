@@ -57,12 +57,42 @@ const SettingsPage = () => {
       
       console.log('Settings response:', response.data);
       
-      setSettingsData({
-        config: response.data.config || {},
-        settings: (response.data.settings || []).map(setting => ({
-          ...setting,
-          value: tryParseJSON(setting.value)
+      // Create a map of existing settings
+      const existingSettings = response.data.settings.reduce((acc, setting) => {
+        // Find the correct category from config
+        const category = Object.keys(response.data.config).find(cat => 
+          Object.keys(response.data.config[cat].settings).includes(setting.key)
+        ) || setting.category;
+
+        return {
+          ...acc,
+          [setting.key]: {
+            ...setting,
+            category
+          }
+        };
+      }, {});
+
+      // Create settings array from config with existing values
+      const configuredSettings = Object.entries(response.data.config).flatMap(([category, { settings }]) => 
+        Object.keys(settings).map(key => ({
+          key,
+          value: existingSettings[key]?.value ?? null,
+          category,
+          isPublic: existingSettings[key]?.isPublic ?? true,
+          description: existingSettings[key]?.description ?? settings[key].description,
+          id: existingSettings[key]?.id ?? null
         }))
+      );
+
+      // Merge with any existing settings that aren't in config
+      const additionalSettings = response.data.settings.filter(
+        setting => !configuredSettings.some(s => s.key === setting.key)
+      );
+
+      setSettingsData({
+        config: response.data.config,
+        settings: [...configuredSettings, ...additionalSettings]
       });
     } catch (error) {
       setError('Failed to load settings');
