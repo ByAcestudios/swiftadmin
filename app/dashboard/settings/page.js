@@ -24,6 +24,32 @@ const SettingsPage = () => {
     fetchSettings();
   }, []);
 
+  const tryParseJSON = (str) => {
+    try {
+      // If it's already an object/array, return as is
+      if (typeof str !== 'string') return str;
+
+      // Try to parse once
+      let parsed = JSON.parse(str);
+
+      // Check if the result is still a stringified JSON
+      if (typeof parsed === 'string') {
+        try {
+          // Try to parse again
+          return JSON.parse(parsed);
+        } catch {
+          // If second parse fails, return first parse result
+          return parsed;
+        }
+      }
+
+      return parsed;
+    } catch (e) {
+      // If parsing fails, return original value
+      return str;
+    }
+  };
+
   const fetchSettings = async () => {
     try {
       setLoading(true);
@@ -35,9 +61,7 @@ const SettingsPage = () => {
         config: response.data.config || {},
         settings: (response.data.settings || []).map(setting => ({
           ...setting,
-          value: typeof setting.value === 'string' 
-            ? tryParseJSON(setting.value) 
-            : setting.value
+          value: tryParseJSON(setting.value)
         }))
       });
     } catch (error) {
@@ -46,14 +70,6 @@ const SettingsPage = () => {
     } finally {
       setLoading(false);
       setInitialLoad(false);
-    }
-  };
-
-  const tryParseJSON = (str) => {
-    try {
-      return JSON.parse(str);
-    } catch (e) {
-      return str;
     }
   };
 
