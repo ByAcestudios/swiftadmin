@@ -5,21 +5,20 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, X, Edit, Save, Trash, Info, Lock } from 'lucide-react';
+import { Edit, Save, Info } from 'lucide-react';
 import api from '@/lib/api';
 
-const ESSENTIAL_SETTINGS = ['riderAssignment', 'operatingHours', 'ratePerKm', 'ratePerHour', 'orderAssignment', 'rateNextDayDelivery', 'rateSameDayDelivery', 'itemCategories', 'rateInstantDelivery', 'rateSameDayDelivery', 'rateNextDayDelivery'];
-
 const SettingsPage = () => {
-  const [settings, setSettings] = useState([]);
+  const [settingsData, setSettingsData] = useState({
+    config: {},
+    settings: []
+  });
+  const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [successMessage, setSuccessMessage] = useState('');
-  const [newSetting, setNewSetting] = useState({ key: '', value: '', description: '' });
-  const [editingKey, setEditingKey] = useState(null);
   const [showInstructions, setShowInstructions] = useState(false);
+  const [initialLoad, setInitialLoad] = useState(true);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   useEffect(() => {
     fetchSettings();
@@ -29,364 +28,364 @@ const SettingsPage = () => {
     try {
       setLoading(true);
       const response = await api.get('/api/settings');
-      setSettings(response.data);
-      setLoading(false);
+      
+      console.log('Settings response:', response.data);
+      
+      setSettingsData({
+        config: response.data.config || {},
+        settings: (response.data.settings || []).map(setting => ({
+          ...setting,
+          value: typeof setting.value === 'string' 
+            ? tryParseJSON(setting.value) 
+            : setting.value
+        }))
+      });
     } catch (error) {
-      console.error('Error fetching settings:', error);
-      setError('Failed to fetch settings. Please try again.');
+      setError('Failed to load settings');
+      console.error('Error loading settings:', error);
+    } finally {
+      setLoading(false);
+      setInitialLoad(false);
+    }
+  };
+
+  const tryParseJSON = (str) => {
+    try {
+      return JSON.parse(str);
+    } catch (e) {
+      return str;
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      setLoading(true);
+      const settingsToUpdate = settingsData.settings.reduce((acc, setting) => ({
+        ...acc,
+        [setting.key]: setting.value
+      }), {});
+
+      console.log('Sending settings update:', { settings: settingsToUpdate });
+
+      await api.post('/api/settings/bulk-update', { settings: settingsToUpdate });
+      setIsEditing(false);
+      await fetchSettings();
+      
+      setSuccessMessage('Settings saved successfully!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+    } catch (error) {
+      console.error('Save error details:', error.response?.data || error.message);
+      setError(error.response?.data?.error || 'Failed to save settings');
+    } finally {
       setLoading(false);
     }
   };
 
-  const parseSettingValue = (setting) => {
-    if (setting.key === 'itemCategories') {
-      try {
-        // First, check if it's already an array
-        if (Array.isArray(setting.value)) {
-          return setting.value;
-        }
-        // If it's a string, try to parse it
-        const parsed = JSON.parse(setting.value);
-        // If the parsed result is an array, return it
-        if (Array.isArray(parsed)) {
-          return parsed;
-        }
-        // If it's still a string (double encoded), parse it again
-        return JSON.parse(parsed);
-      } catch (e) {
-        console.error('Error parsing itemCategories:', e);
-        return [];
-      }
+  const handleChange = (key, value) => {
+    setSettingsData(prev => ({
+      ...prev,
+      settings: prev.settings.map(setting => 
+        setting.key === key 
+          ? { ...setting, value } 
+          : setting
+      )
+    }));
+  };
+
+  const getSettingConfig = (category, key) => {
+    return settingsData.config[category]?.settings[key] || {};
+  };
+
+  const getSettingValue = (key) => {
+    const setting = settingsData.settings.find(s => s.key === key);
+    if (!setting) {
+      const newSetting = {
+        key,
+        value: null,
+        category: Object.keys(settingsData.config).find(category => 
+          settingsData.config[category].settings[key]
+        )
+      };
+      setSettingsData(prev => ({
+        ...prev,
+        settings: [...prev.settings, newSetting]
+      }));
+      return null;
     }
     return setting.value;
   };
 
-  const handleChange = (key, value) => {
-    setSettings(prevSettings =>
-      prevSettings.map(setting =>
-        setting.key === key ? { ...setting, value } : setting
-      )
-    );
-  };
+  const renderSettingInput = (category, key) => {
+    const config = getSettingConfig(category, key);
+    const value = getSettingValue(key);
 
-  const handleEdit = (key) => {
-    setEditingKey(key);
-  };
+    switch (config.type) {
+      case 'number':
+        return (
+          <Input
+            type="text"
+            value={value?.toString() ?? ''}
+            onChange={(e) => {
+              const newValue = e.target.value.replace(/[^\d.]/g, '');
+              if (newValue === '' || !isNaN(newValue)) {
+                handleChange(key, newValue === '' ? '' : Number(newValue));
+              }
+            }}
+            onBlur={(e) => {
+              let num = Number(e.target.value);
+              if (!isNaN(num)) {
+                const { min, max } = config.validation || {};
+                if (min !== undefined) num = Math.max(min, num);
+                if (max !== undefined) num = Math.min(max, num);
+                handleChange(key, num);
+              }
+            }}
+            disabled={!isEditing}
+            className="font-mono"
+          />
+        );
 
-  const handleSave = async (setting) => {
-    try {
-      setLoading(true);
-      let value = setting.value;
-      if (setting.key === 'itemCategories') {
-        value = JSON.stringify(value);
-      } else if (setting.key === 'operatingHours') {
-        value = JSON.stringify(value);
-      }
-      await api.put(`/api/settings/${setting.key}`, {
-        value,
-        description: setting.description
-      });
-      setSuccessMessage(`Setting "${setting.key}" updated successfully!`);
-      setEditingKey(null);
-      fetchSettings();
-    } catch (error) {
-      console.error('Error updating setting:', error);
-      setError(`Failed to update setting "${setting.key}". Please try again.`);
-    } finally {
-      setLoading(false);
-    }
-  };
+      case 'select':
+        return (
+          <Select
+            value={value ?? ''}
+            onValueChange={(value) => handleChange(key, value)}
+            disabled={!isEditing}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder={`Select ${config.label}`} />
+            </SelectTrigger>
+            <SelectContent>
+              {config.options?.map(option => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        );
 
-  const handleDelete = async (key) => {
-    if (ESSENTIAL_SETTINGS.includes(key)) {
-      setError(`Cannot delete essential setting "${key}".`);
-      return;
-    }
+      case 'timeRange':
+        const times = value || { from: '09:00', to: '17:00' };
+        return (
+          <div className="flex gap-4">
+            <div className="flex flex-col gap-2">
+              <Label>From</Label>
+              <Input
+                type="time"
+                value={times.from}
+                onChange={(e) => handleChange(key, { ...times, from: e.target.value })}
+                disabled={!isEditing}
+              />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label>To</Label>
+              <Input
+                type="time"
+                value={times.to}
+                onChange={(e) => handleChange(key, { ...times, to: e.target.value })}
+                disabled={!isEditing}
+              />
+            </div>
+          </div>
+        );
 
-    if (window.confirm(`Are you sure you want to delete the setting "${key}"?`)) {
-      try {
-        setLoading(true);
-        await api.delete(`/api/settings/${key}`);
-        setSuccessMessage(`Setting "${key}" deleted successfully!`);
-        fetchSettings();
-      } catch (error) {
-        console.error('Error deleting setting:', error);
-        setError(`Failed to delete setting "${key}". Please try again.`);
-      } finally {
-        setLoading(false);
-      }
-    }
-  };
-
-  const handleCreateNew = async (e) => {
-    e.preventDefault();
-    try {
-      setLoading(true);
-      await api.post('/api/settings', newSetting);
-      setSuccessMessage(`New setting "${newSetting.key}" created successfully!`);
-      setNewSetting({ key: '', value: '', description: '' });
-      fetchSettings();
-    } catch (error) {
-      console.error('Error creating new setting:', error);
-      setError('Failed to create new setting. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleBulkUpdate = async () => {
-    try {
-      setLoading(true);
-      const updatedSettings = settings.map(setting => ({
-        ...setting,
-        value: ['itemCategories', 'operatingHours'].includes(setting.key)
-          ? JSON.stringify(setting.value)
-          : setting.value
-      }));
-      await api.post('/api/settings/bulk-update', { settings: updatedSettings });
-      setSuccessMessage('Settings updated successfully!');
-      fetchSettings();
-    } catch (error) {
-      console.error('Error bulk updating settings:', error);
-      setError('Failed to update settings. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const renderSettingInput = (setting) => {
-    const isEditing = editingKey === setting.key;
-    const value = parseSettingValue(setting);
-    const isEssential = ESSENTIAL_SETTINGS.includes(setting.key);
-    
-    switch (setting.key) {
-      case 'itemCategories':
+      case 'array':
+        const items = Array.isArray(value) ? value : [];
         return (
           <div className="space-y-2">
-            {Array.isArray(value) ? value.map((category, index) => (
-              <div key={index} className="flex items-center space-x-2">
+            {items.map((item, index) => (
+              <div key={index} className="flex gap-2">
                 <Input
-                  value={category}
+                  value={item}
                   onChange={(e) => {
-                    const newCategories = [...value];
-                    newCategories[index] = e.target.value;
-                    handleChange(setting.key, newCategories);
+                    const newItems = [...items];
+                    newItems[index] = e.target.value;
+                    handleChange(key, newItems);
                   }}
                   disabled={!isEditing}
                 />
                 {isEditing && (
-                  <Button onClick={() => {
-                    const newCategories = value.filter((_, i) => i !== index);
-                    handleChange(setting.key, newCategories);
-                  }}>
-                    <X className="w-4 h-4" />
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      const newItems = items.filter((_, i) => i !== index);
+                      handleChange(key, newItems);
+                    }}
+                  >
+                    Remove
                   </Button>
                 )}
               </div>
-            )) : <p>Invalid format for item categories</p>}
+            ))}
             {isEditing && (
-              <Button onClick={() => handleChange(setting.key, [...value, ''])}>
-                <Plus className="w-4 h-4 mr-2" /> Add Category
+              <Button
+                variant="outline"
+                onClick={() => handleChange(key, [...items, ''])}
+              >
+                Add Item
               </Button>
             )}
           </div>
         );
-      case 'riderAssignment':
+
+      case 'boolean':
         return (
-          <div className="space-y-2">
-            <p className="text-sm text-gray-600">Current value: {value}</p>
-            {isEditing ? (
-              <Select
-                value={value}
-                onValueChange={(newValue) => handleChange(setting.key, newValue)}
-              >
-                <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder="Select assignment method" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="automatic">Automatic</SelectItem>
-                  <SelectItem value="manual">Manual</SelectItem>
-                </SelectContent>
-              </Select>
-            ) : (
-              <p>{value}</p>
-            )}
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id={key}
+              checked={value ?? false}
+              onChange={(e) => handleChange(key, e.target.checked)}
+              disabled={!isEditing}
+              className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+            />
+            <Label htmlFor={key}>
+              {value ? 'Enabled' : 'Disabled'}
+            </Label>
           </div>
         );
-      case 'operatingHours':
-        return (
-          <div className="flex space-x-2">
-            <Input
-              type="time"
-              value={value.from}
-              onChange={(e) => handleChange(setting.key, JSON.stringify({ ...value, from: e.target.value }))}
-              disabled={!isEditing}
-            />
-            <Input
-              type="time"
-              value={value.to}
-              onChange={(e) => handleChange(setting.key, JSON.stringify({ ...value, to: e.target.value }))}
-              disabled={!isEditing}
-            />
-          </div>
-        );
+
       default:
-        switch (typeof value) {
-          case 'number':
-            return (
-              <Input
-                type="number"
-                value={value}
-                onChange={(e) => handleChange(setting.key, Number(e.target.value))}
-                disabled={!isEditing}
-              />
-            );
-          case 'boolean':
-            return (
-              <Select
-                value={value.toString()}
-                onValueChange={(newValue) => handleChange(setting.key, newValue === 'true')}
-                disabled={!isEditing}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="true">True</SelectItem>
-                  <SelectItem value="false">False</SelectItem>
-                </SelectContent>
-              </Select>
-            );
-          case 'object':
-            return (
-              <Textarea
-                value={JSON.stringify(value, null, 2)}
-                onChange={(e) => handleChange(setting.key, e.target.value)}
-                disabled={!isEditing}
-              />
-            );
-          default:
-            return (
-              <Input
-                value={value}
-                onChange={(e) => handleChange(setting.key, e.target.value)}
-                disabled={!isEditing}
-              />
-            );
-        }
+        return (
+          <Input
+            value={value ?? ''}
+            onChange={(e) => handleChange(key, e.target.value)}
+            disabled={!isEditing}
+          />
+        );
     }
   };
 
-  if (loading) return <div>Loading...</div>;
-  if (error) return <div className="text-red-500">{error}</div>;
+  if (initialLoad) return <div>Loading settings...</div>;
+  if (error) return (
+    <div className="p-4 text-red-500 bg-red-50 rounded">
+      <h3 className="font-bold">Error</h3>
+      <p>{error}</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold text-gray-800">Settings</h1>
-        <Button onClick={() => setShowInstructions(!showInstructions)}>
-          <Info className="w-4 h-4 mr-2" /> Instructions
-        </Button>
-      </div>
-      
-      {showInstructions && (
-        <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-4" role="alert">
-          <p className="font-bold">Instructions for updating settings:</p>
-          <ul className="list-disc list-inside">
-            <li>Click the &quot;Edit&quot; button next to a setting to modify its value.</li>
-            <li>For item categories, you can add or remove categories when editing.</li>
-            <li>For operating hours, use the time inputs to set the &quot;from&quot; and &quot;to&quot; times.</li>
-            <li>For rider assignment, choose between &apos;Automatic&apos; (system assigns riders) or &apos;Manual&apos; (administrators assign riders).</li>
-            <li>After making changes, click &quot;Save&quot; to update the setting.</li>
-            <li>Use the &quot;Create New Setting&quot; form at the top to add a new setting.</li>
-            <li>Some settings are essential for the app&apos;s functionality and cannot be deleted. These are marked as &quot;Essential&quot;.</li>
-            <li>The &quot;Bulk Update All Settings&quot; button at the bottom will save all changes at once.</li>
-          </ul>
-        </div>
-      )}
-
-      <p className="text-sm text-gray-600">Manage your application settings here.</p>
-      {successMessage && (
-        <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative" role="alert">
-          <span className="block sm:inline">{successMessage}</span>
-        </div>
-      )}
-      
-      {/* Create New Setting Form */}
-      <form onSubmit={handleCreateNew} className="space-y-4 bg-white p-6 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold">Create New Setting</h2>
-        <div className="flex space-x-4">
-          <Input
-            placeholder="Key"
-            value={newSetting.key}
-            onChange={(e) => setNewSetting({ ...newSetting, key: e.target.value })}
-            required
-          />
-          <Input
-            placeholder="Value"
-            value={newSetting.value}
-            onChange={(e) => setNewSetting({ ...newSetting, value: e.target.value })}
-            required
-          />
-          <Input
-            placeholder="Description"
-            value={newSetting.description}
-            onChange={(e) => setNewSetting({ ...newSetting, description: e.target.value })}
-          />
-          <Button type="submit" disabled={loading}>
-            <Plus className="w-4 h-4 mr-2" /> Add
+        <h1 className="text-3xl font-bold">Settings</h1>
+        <div className="flex gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setShowInstructions(!showInstructions)}
+          >
+            <Info className="w-4 h-4 mr-2" /> Instructions
           </Button>
+          {isEditing ? (
+            <Button onClick={handleSave} disabled={loading}>
+              <Save className="w-4 h-4 mr-2" /> Save Changes
+            </Button>
+          ) : (
+            <Button onClick={() => setIsEditing(true)}>
+              <Edit className="w-4 h-4 mr-2" /> Edit Settings
+            </Button>
+          )}
         </div>
-      </form>
+      </div>
 
-      {/* Existing Settings */}
-      <div className="space-y-6 bg-white p-6 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold">Current Settings</h2>
-        {settings.map((setting) => (
-          <div key={setting.id} className="space-y-2 border-b pb-4">
-            <div className="flex items-center space-x-2">
-              <Label htmlFor={setting.key} className="font-semibold">{setting.key}</Label>
-              {ESSENTIAL_SETTINGS.includes(setting.key) && (
-                <span className="bg-blue-100 text-blue-800 text-xs font-medium mr-2 px-2.5 py-0.5 rounded">
-                  Essential
-                </span>
-              )}
+      {successMessage && (
+        <div className="bg-green-50 border-l-4 border-green-500 p-4 text-green-700">
+          <div className="flex">
+            <div className="flex-shrink-0">
+              <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+              </svg>
             </div>
-            {setting.key === 'riderAssignment' && (
-              <p className="text-sm text-gray-600 mb-2">
-                Choose how riders are assigned to orders. &apos;Automatic&apos; lets the system assign riders, while &apos;Manual&apos; allows administrators to assign riders manually.
-              </p>
-            )}
-            {renderSettingInput(setting)}
-            <p className="text-sm text-gray-500">{setting.description}</p>
-            <div className="flex space-x-2">
-              {editingKey === setting.key ? (
-                <Button onClick={() => handleSave(setting)} disabled={loading}>
-                  <Save className="w-4 h-4 mr-2" /> Save
-                </Button>
-              ) : (
-                <Button onClick={() => handleEdit(setting.key)} disabled={loading}>
-                  <Edit className="w-4 h-4 mr-2" /> Edit
-                </Button>
-              )}
-              {ESSENTIAL_SETTINGS.includes(setting.key) ? (
-                <Button disabled variant="outline" className="text-gray-400">
-                  <Lock className="w-4 h-4 mr-2" /> Essential
-                </Button>
-              ) : (
-                <Button onClick={() => handleDelete(setting.key)} variant="destructive" disabled={loading}>
-                  <Trash className="w-4 h-4 mr-2" /> Delete
-                </Button>
-              )}
+            <div className="ml-3">
+              <p className="text-sm font-medium">{successMessage}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showInstructions && (
+        <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-6 space-y-4">
+          <h3 className="font-bold text-lg">How to Use Settings</h3>
+          
+          <div>
+            <p className="font-semibold">Basic Steps:</p>
+            <ol className="list-decimal list-inside mt-2 space-y-2">
+              <li>Click the "Edit Settings" button at the top right to start making changes</li>
+              <li>Update any settings you need to change</li>
+              <li>Click "Save Changes" when you're done</li>
+            </ol>
+          </div>
+
+          <div className="space-y-2">
+            <p className="font-semibold">What Each Section Means:</p>
+            
+            <div className="ml-4 space-y-3">
+              <div>
+                <p className="font-medium">🛍️ Order Management</p>
+                <p className="text-sm">Controls how orders work: cancellation reasons, maximum order values, and how long before orders auto-cancel.</p>
+              </div>
+
+              <div>
+                <p className="font-medium">🚲 Rider Management</p>
+                <p className="text-sm">Settings for delivery riders: their performance scores, how many orders they can handle, and their working area.</p>
+              </div>
+
+              <div>
+                <p className="font-medium">🏪 Business Categories</p>
+                <p className="text-sm">Manage what types of businesses can use the platform and what items they can/cannot deliver.</p>
+              </div>
+
+              <div>
+                <p className="font-medium">⏰ Scheduling</p>
+                <p className="text-sm">Control when bikes are available, peak hours, and how far in advance orders can be booked.</p>
+              </div>
+
+              <div>
+                <p className="font-medium">💰 Pricing & Fees</p>
+                <p className="text-sm">Set all delivery fees, rates per kilometer, waiting charges, and distance limits.</p>
+              </div>
+
+              <div>
+                <p className="font-medium">⚙️ System Behavior</p>
+                <p className="text-sm">Control how the system works: automatic order assignment, GPS tracking, and delivery limits.</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <p className="font-semibold">Tips:</p>
+            <ul className="list-disc list-inside mt-2 space-y-2">
+              <li>For lists (like cancellation reasons), click "Add Item" to add more options</li>
+              <li>Time ranges need both a start and end time</li>
+              <li>Numbers will automatically stay within their allowed ranges</li>
+              <li>Toggle switches can be turned on/off with a single click</li>
+              <li>Don't forget to save your changes!</li>
+            </ul>
+          </div>
+
+          <div className="mt-4 bg-yellow-50 p-3 rounded">
+            <p className="font-semibold text-yellow-800">⚠️ Important Note:</p>
+            <p className="text-sm text-yellow-800">Changes to these settings will affect how the entire delivery system works. If you're unsure about a setting, please check with your supervisor before making changes.</p>
+          </div>
+        </div>
+      )}
+
+      <div className="space-y-8">
+        {Object.entries(settingsData.config).map(([category, { label, settings: categorySettings }]) => (
+          <div key={category} className="bg-white p-6 rounded-lg shadow-md space-y-4">
+            <h2 className="text-xl font-semibold">{label}</h2>
+            <div className="grid gap-6">
+              {Object.entries(categorySettings).map(([key, config]) => (
+                <div key={key} className="space-y-2">
+                  <Label className="font-medium">{config.label}</Label>
+                  <p className="text-sm text-gray-500">{config.description}</p>
+                  {renderSettingInput(category, key)}
+                </div>
+              ))}
             </div>
           </div>
         ))}
       </div>
-
-      {/* Bulk Update Button */}
-      <Button onClick={handleBulkUpdate} className="w-full bg-[#733E70] hover:bg-[#62275F] text-white" disabled={loading}>
-        {loading ? 'Updating...' : 'Bulk Update All Settings'}
-      </Button>
     </div>
   );
 };
