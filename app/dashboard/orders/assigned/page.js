@@ -9,14 +9,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Badge } from "@/components/ui/badge";
 import { Eye, Edit, Trash2, UserPlus, Plus } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast"
-import CreateOrderForm from './CreateOrderForm';
-import OrderActions from './OrderActions';
-import OrderDetails from './OrderDetails';
-import AssignRiderForm from './AssignRiderForm';
-import EditOrderForm from './EditOrderForm';
-import OrderFilterBar from './OrderFilterBar';
-import OrdersTable from './OrdersTable';
-import Pagination from './pagination';
+import CreateOrderForm from '../CreateOrderForm';
+import OrderActions from '../OrderActions';
+import OrderDetails from '../OrderDetails';
+import AssignRiderForm from '../AssignRiderForm';
+import EditOrderForm from '../EditOrderForm';
+import OrderFilterBar from '../OrderFilterBar';
+import OrdersTable from '../OrdersTable';
+import Pagination from '../pagination';
 import api from '@/lib/api';
 
 const ITEMS_PER_PAGE = 10; // Adjust this value as needed
@@ -53,9 +53,11 @@ const OrdersPage = () => {
       if (filters.search?.trim()) queryParams.append('search', filters.search.trim());
       if (filters.orderType && filters.orderType !== 'all') queryParams.append('orderType', filters.orderType);
       if (filters.orderStatus && filters.orderStatus !== 'all') queryParams.append('orderStatus', filters.orderStatus);
-      if (filters.riderStatus && filters.riderStatus !== 'all') {
-        queryParams.append('hasRider', filters.riderStatus === 'assigned' ? 'true' : 'false');
-      }
+    //   if (filters.riderStatus && filters.riderStatus !== 'all') {
+    //     queryParams.append('hasRider', filters.riderStatus === 'assigned' ? 'true' : 'false');
+    //   }
+    queryParams.append('hasRider', true);
+
       queryParams.append('page', currentPage);
 
       const queryString = queryParams.toString();
@@ -85,9 +87,12 @@ const OrdersPage = () => {
         if (filters.search?.trim()) queryParams.append('search', filters.search.trim());
         if (filters.orderType && filters.orderType !== 'all') queryParams.append('orderType', filters.orderType);
         if (filters.orderStatus && filters.orderStatus !== 'all') queryParams.append('orderStatus', filters.orderStatus);
-        if (filters.riderStatus && filters.riderStatus !== 'all') {
-          queryParams.append('hasRider', filters.riderStatus === 'assigned' ? 'true' : 'false');
-        }
+        // if (filters.riderStatus && filters.riderStatus !== 'all') {
+        //   queryParams.append('hasRider', filters.riderStatus === 'assigned' ? 'true' : 'false');
+        // }
+
+        queryParams.append('hasRider', true);
+
         queryParams.append('page', currentPage);
 
         const queryString = queryParams.toString();
@@ -259,20 +264,9 @@ const OrdersPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-800">Orders</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Assigned Orders</h1>
         <div className="flex gap-2">
-          {/* <Button 
-            variant="outline" 
-            onClick={() => handleFilterChange({ ...filters, riderStatus: 'unassigned' })}
-          >
-            View Unassigned Orders
-          </Button>
-          <Button 
-            variant="outline"
-            onClick={() => handleFilterChange({ ...filters, riderStatus: 'assigned' })}
-          >
-            View Assigned Orders
-          </Button> */}
+        
           <Button onClick={() => setIsCreateModalOpen(true)} className="bg-[#733E70] hover:bg-[#62275F] text-white">
             <Plus className="w-5 h-5 mr-2" />
             Create Order

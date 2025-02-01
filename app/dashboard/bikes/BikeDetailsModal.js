@@ -1,51 +1,85 @@
-import { useState, useEffect } from 'react';
+'use client';
+
+import { useState, useEffect, useCallback } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { X, Edit2, Check } from 'lucide-react';
-import Select from 'react-select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import api from '@/lib/api';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { ChevronsUpDown } from "lucide-react"
+import { cn } from "@/lib/utils"
 
 const BikeDetailsModal = ({ bikeId, onClose }) => {
   const [bikeDetails, setBikeDetails] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
-  const [riders, setRiders] = useState([]);
-  const [selectedRider, setSelectedRider] = useState(null);
   const [history, setHistory] = useState([]);
+  const [selectedRider, setSelectedRider] = useState(null);
+  const [ridersData, setRidersData] = useState({
+    riders: [],
+    metadata: { totalRiders: 0, currentPage: 1, totalPages: 1 }
+  });
+  const [riderSearch, setRiderSearch] = useState('');
+  const [isLoadingRiders, setIsLoadingRiders] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [open, setOpen] = useState(false);
 
+  const fetchRiders = useCallback(async () => {
+    setIsLoadingRiders(true);
+    try {
+      const response = await api.get('/api/riders', {
+        params: {
+          page: 1,
+          limit: 10,
+          search: riderSearch || undefined,
+          status: 'active'
+        }
+      });
+      setRidersData({
+        riders: response.data.riders || [],
+        metadata: response.data.metadata || { totalRiders: 0, currentPage: 1, totalPages: 1 }
+      });
+    } catch (error) {
+      console.error('Error fetching riders:', error);
+    } finally {
+      setIsLoadingRiders(false);
+    }
+  }, [riderSearch]);
+
+  const fetchBikeDetails = async () => {
+    try {
+      const response = await api.get(`/api/bikes/${bikeId}`);
+      setBikeDetails(response.data);
+    } catch (error) {
+      console.error('Error fetching bike details:', error);
+    }
+  };
+
+  const fetchHistory = async () => {
+    try {
+      const response = await api.get(`/api/bikes/${bikeId}/history`);
+      setHistory(Array.isArray(response.data) ? response.data : []);
+    } catch (error) {
+      console.error('Error fetching history:', error);
+    }
+  };
+
+  // Initial data fetch
   useEffect(() => {
-    const fetchBikeDetails = async () => {
-      try {
-        const response = await api.get(`/api/bikes/${bikeId}`);
-        setBikeDetails(response.data);
-      } catch (error) {
-        console.error('Error fetching bike details:', error);
-      }
-    };
+    if (bikeId) {
+      fetchBikeDetails();
+      fetchHistory();
+      fetchRiders();
+    }
+  }, [bikeId, fetchRiders]);
 
-    const fetchRiders = async () => {
-      try {
-        const response = await api.get('/api/riders');
-        setRiders(response.data);
-      } catch (error) {
-        console.error('Error fetching riders:', error);
-      }
-    };
-
-    const fetchHistory = async () => {
-      try {
-        const response = await api.get(`/api/bikes/${bikeId}/history`);
-        setHistory(response.data);
-      } catch (error) {
-        console.error('Error fetching bike history:', error);
-      }
-    };
-
-    fetchBikeDetails();
+  // Search handler
+  const handleSearch = (value) => {
+    setRiderSearch(value);
     fetchRiders();
-    fetchHistory();
-  }, [bikeId]);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -56,6 +90,7 @@ const BikeDetailsModal = ({ bikeId, onClose }) => {
     try {
       await api.put(`/api/bikes/${bikeId}`, bikeDetails);
       setIsEditing(false);
+      fetchBikeDetails();
       setSuccessMessage('Bike details updated successfully!');
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
@@ -64,15 +99,15 @@ const BikeDetailsModal = ({ bikeId, onClose }) => {
   };
 
   const handleAssignRider = async () => {
+    if (!selectedRider) return;
     try {
       await api.post('/api/bikes/assign', {
         bikeId,
-        riderId: selectedRider.value,
+        riderId: selectedRider.value
       });
+      fetchBikeDetails();
+      fetchHistory();
       setSelectedRider(null);
-      // Refresh history after assigning rider
-      const response = await api.get(`/api/bikes/${bikeId}/history`);
-      setHistory(response.data);
       setSuccessMessage('Rider assigned successfully!');
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
@@ -83,22 +118,6 @@ const BikeDetailsModal = ({ bikeId, onClose }) => {
   if (!bikeDetails) {
     return <div>Loading...</div>;
   }
-
-  const riderOptions = riders.map(rider => ({
-    value: rider.id,
-    label: (
-      <div className="flex items-center">
-        {rider.profilePictureUrl && (
-          <img
-            src={rider.profilePictureUrl}
-            alt={`${rider.firstName} ${rider.lastName}`}
-            className="w-8 h-8 rounded-full mr-2"
-          />
-        )}
-        {rider.firstName} {rider.lastName}
-      </div>
-    ),
-  }));
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
@@ -168,8 +187,10 @@ const BikeDetailsModal = ({ bikeId, onClose }) => {
                 <Input
                   id="color"
                   name="color"
+                  type="color"
                   value={bikeDetails.color}
                   onChange={handleChange}
+                  className="h-10"
                 />
               ) : (
                 <div className="flex items-center">
@@ -255,18 +276,72 @@ const BikeDetailsModal = ({ bikeId, onClose }) => {
 
           <div className="space-y-2">
             <Label>Assign Rider</Label>
-            <Select
-              value={selectedRider}
-              onChange={setSelectedRider}
-              options={riderOptions}
-              isSearchable
-              placeholder="Select Rider"
-              className="react-select-container"
-              classNamePrefix="react-select"
-            />
-            <Button onClick={handleAssignRider} className="mt-2 bg-[#733E70] hover:bg-[#62275F] text-white">
-              Assign Rider
-            </Button>
+            <div className="flex space-x-2">
+              <div className="w-[300px]">
+                <Select
+                  onValueChange={(value) => {
+                    const rider = ridersData.riders.find(r => r.id === value);
+                    setSelectedRider({
+                      value: rider.id,
+                      label: `${rider.firstName} ${rider.lastName}`
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select rider..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <div className="px-3 py-2">
+                      <Input
+                        placeholder="Search riders..."
+                        value={riderSearch}
+                        onChange={(e) => handleSearch(e.target.value)}
+                        className="h-8"
+                      />
+                    </div>
+                    {isLoadingRiders ? (
+                      <SelectItem value="loading" disabled>
+                        Loading...
+                      </SelectItem>
+                    ) : (
+                      ridersData.riders.map((rider) => (
+                        <SelectItem key={rider.id} value={rider.id}>
+                          <div className="flex items-center space-x-2">
+                            {rider.profilePictureUrl && (
+                              <img 
+                                src={rider.profilePictureUrl} 
+                                alt=""
+                                className="w-6 h-6 rounded-full object-cover"
+                              />
+                            )}
+                            <span>{rider.firstName} {rider.lastName}</span>
+                            <span className="text-gray-500 text-sm">({rider.phoneNumber})</span>
+                            <span 
+                              className={`ml-auto w-2 h-2 rounded-full ${
+                                rider.details.isOnline ? 'bg-green-500' : 'bg-gray-400'
+                              }`}
+                            />
+                          </div>
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button 
+                onClick={handleAssignRider} 
+                className="bg-[#733E70] hover:bg-[#62275F] text-white"
+                disabled={!selectedRider}
+              >
+                Assign Rider
+              </Button>
+            </div>
+            {ridersData.metadata && (
+              <div className="text-sm text-gray-500 mt-1">
+                Showing {ridersData.riders.length} of {ridersData.metadata.totalRiders} riders
+                {riderSearch && ' (filtered by search)'}
+              </div>
+            )}
           </div>
 
           <div className="space-y-2">
@@ -274,7 +349,7 @@ const BikeDetailsModal = ({ bikeId, onClose }) => {
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rider &apos;s Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rider's Name</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Assigned At</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Returned At</th>
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Current</th>
@@ -284,7 +359,7 @@ const BikeDetailsModal = ({ bikeId, onClose }) => {
                 {history.map((entry, index) => (
                   <tr key={entry.id}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                      {riders.find(rider => rider.id === entry.riderId)?.firstName} {riders.find(rider => rider.id === entry.riderId)?.lastName}
+                      {entry.Rider ? `${entry.Rider.firstName} ${entry.Rider.lastName}` : 'Unknown'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                       {new Date(entry.assignedAt).toLocaleDateString()}
@@ -293,7 +368,7 @@ const BikeDetailsModal = ({ bikeId, onClose }) => {
                       {entry.returnedAt ? new Date(entry.returnedAt).toLocaleDateString() : 'N/A'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                      {index === 0 && !entry.returnedAt && <Check className="w-5 h-5 text-green-500" />}
+                      {!entry.returnedAt && <Check className="w-5 h-5 text-green-500" />}
                     </td>
                   </tr>
                 ))}

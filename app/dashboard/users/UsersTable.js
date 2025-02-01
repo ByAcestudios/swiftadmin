@@ -1,8 +1,34 @@
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import UserActions from './UserActions';
-import { User, Phone, Mail, ShoppingCart, Tag } from 'lucide-react';
+import { MoreVertical, MoreHorizontal } from 'lucide-react';
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-const UsersTable = ({ users, onUserAction }) => {
+export function UsersTable({ users, onUserAction }) {
+  const router = useRouter();
+
   const getStatusColor = (status) => {
     if (!status) return 'bg-gray-100 text-gray-800'; // Default color for undefined status
     
@@ -36,65 +62,113 @@ const UsersTable = ({ users, onUserAction }) => {
   };
 
   return (
-    <div className="overflow-x-auto bg-white shadow-md rounded-lg">
-      <table className="min-w-full divide-y divide-gray-200">
-        <thead className="bg-gray-50">
-          <tr>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Contact</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Orders</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-            <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
-          </tr>
-        </thead>
-        <tbody className="bg-white divide-y divide-gray-200">
-          {users.map((user) => (
-            <tr key={user.id} className="hover:bg-gray-50">
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="flex items-center">
-                  <div className="flex-shrink-0 h-10 w-10">
-                    <User className="h-10 w-10 rounded-full bg-gray-200 p-2 text-gray-600" />
-                  </div>
-                  <div className="ml-4">
-                    <div className="text-sm font-medium text-gray-900">{user.name}</div>
-                    <div className="text-sm text-gray-500">{user.businessCategory}</div>
-                  </div>
+    <div className="rounded-md border">
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Email</TableHead>
+            <TableHead>Role</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Verified</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody className="divide-y divide-gray-200 bg-white">
+          {users.map(user => (
+            <TableRow key={user.id} className="hover:bg-gray-50">
+              <TableCell 
+                className="px-6 py-4 whitespace-nowrap cursor-pointer group"
+                onClick={() => router.push(`/dashboard/users/${user.id}`)}
+              >
+                <div className="text-sm font-medium text-gray-900 group-hover:text-[#733E70]">
+                  {user.fullName || 'N/A'}
                 </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900 flex items-center">
-                  <Phone className="h-4 w-4 mr-2 text-gray-400" />
-                  {user.phoneNumber}
-                </div>
-                <div className="text-sm text-gray-500 flex items-center mt-1">
-                  <Mail className="h-4 w-4 mr-2 text-gray-400" />
-                  {user.email}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <div className="text-sm text-gray-900 flex items-center">
-                  <ShoppingCart className="h-4 w-4 mr-2 text-gray-400" />
-                  {user.orderCount}
-                </div>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap">
-                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(user.status)}`}>
-                  {user.status || 'Unknown'}
-                </span>
-              </td>
-              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <UserActions
-                  userId={user.id}
-                  actions={getActions(user)}
-                  onActionSelect={onUserAction}
-                />
-              </td>
-            </tr>
+              </TableCell>
+              <TableCell className="px-6 py-4 whitespace-nowrap">
+                {user.email}
+              </TableCell>
+              <TableCell className="px-6 py-4 whitespace-nowrap capitalize">
+                <Badge 
+                  variant={
+                    user.role === 'admin' ? 'destructive' :
+                    user.role === 'sub-admin' ? 'default' :
+                    'blue'
+                  }
+                >
+                  {user.role}
+                </Badge>
+              </TableCell>
+              <TableCell className="px-6 py-4 whitespace-nowrap">
+                <Badge 
+                  variant={
+                    user.status === 'active' ? 'green' :
+                    'destructive'
+                  }
+                >
+                  {user.status}
+                </Badge>
+              </TableCell>
+              <TableCell className="px-6 py-4 whitespace-nowrap">
+                <Badge 
+                  variant={user.isVerified ? 'blue' : 'destructive'}
+                >
+                  {user.isVerified ? 'Verified' : 'Unverified'}
+                </Badge>
+              </TableCell>
+              <TableCell className="px-6 py-4 whitespace-nowrap text-right">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      className="h-8 w-8 p-0"
+                      disabled={user.role === 'admin'}
+                    >
+                      <MoreHorizontal className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  {user.role !== 'admin' && (
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => onUserAction(user, 'edit')}>
+                        Edit
+                      </DropdownMenuItem>
+                      {user.status === 'active' ? (
+                        <DropdownMenuItem 
+                          onClick={() => onUserAction(user.id, 'suspend')}
+                          className="text-yellow-600"
+                        >
+                          Suspend Account
+                        </DropdownMenuItem>
+                      ) : (
+                        <DropdownMenuItem 
+                          onClick={() => onUserAction(user.id, 'activate')}
+                          className="text-green-600"
+                        >
+                          Activate Account
+                        </DropdownMenuItem>
+                      )}
+                      {!user.isVerified && (
+                        <DropdownMenuItem 
+                          onClick={() => onUserAction(user.id, 'resendVerification')}
+                          className="text-blue-600"
+                        >
+                          Resend Verification
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem 
+                        onClick={() => onUserAction(user.id, 'delete')}
+                        className="text-red-600"
+                      >
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  )}
+                </DropdownMenu>
+              </TableCell>
+            </TableRow>
           ))}
-        </tbody>
-      </table>
+        </TableBody>
+      </Table>
     </div>
   );
-};
-
-export default UsersTable;
+}

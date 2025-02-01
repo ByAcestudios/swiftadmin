@@ -1,77 +1,208 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import UsersTable from './UsersTable';
+import { useState, useEffect, useCallback } from 'react';
+import { UsersTable } from "./UsersTable";
 import FilterBar from './FilterBar';
 import Pagination from './Pagination';
 import UserForm from './UserForm';
 import { Button } from "@/components/ui/button";
-import { generateRandomUsers } from '@/utils/generateRandomUsers';
 import { Plus } from 'lucide-react';
+import api from '@/lib/api';
+
+// import { toast } from "@/components/ui/use-toast";
 
 const UsersPage = () => {
   const [users, setUsers] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(10);
-  const [activeFilters, setActiveFilters] = useState([]);
+  const [totalPages, setTotalPages] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [filters, setFilters] = useState({
+    search: '',
+    role: 'all',
+    status: 'all',
+    isVerified: 'all'
+  });
+  const [shouldFetch, setShouldFetch] = useState(false);
 
-  useEffect(() => {
-    const randomUsers = generateRandomUsers(50);
-    setUsers(randomUsers);
-  }, []);
+  const fetchUsers = async () => {
+    try {
+      // console.log('Fetching users with filters:', filters);
+      const queryParams = new URLSearchParams();
+      
+      // Only add parameters if they have meaningful values
+      if (filters.search?.trim()) queryParams.append('search', filters.search.trim());
+      if (filters.role && filters.role !== 'all') queryParams.append('role', filters.role);
+      if (filters.status && filters.status !== 'all') queryParams.append('status', filters.status);
+      if (filters.isVerified && filters.isVerified !== 'all') queryParams.append('isVerified', filters.isVerified);
 
-  const handleCreateUser = (userData) => {
-    setUsers([...users, { ...userData, id: users.length + 1 }]);
-    setIsModalOpen(false);
-  };
-
-  const handleEditUser = (userData) => {
-    setUsers(users.map(user => user.id === userData.id ? userData : user));
-    setIsModalOpen(false);
-    setEditingUser(null);
-  };
-
-  const handleUserAction = (userId, action) => {
-    switch (action) {
-      case 'edit':
-        const userToEdit = users.find(user => user.id === userId);
-        setEditingUser(userToEdit);
-        setIsModalOpen(true);
-        break;
-      case 'suspend':
-        setUsers(users.map(user => 
-          user.id === userId ? { ...user, status: 'Suspended' } : user
-        ));
-        break;
-      case 'activate':
-        setUsers(users.map(user => 
-          user.id === userId ? { ...user, status: 'Active' } : user
-        ));
-        break;
-      case 'delete':
-        setUsers(users.filter(user => user.id !== userId));
-        break;
-      default:
-        console.log(`Unhandled action: ${action}`);
+      const queryString = queryParams.toString();
+      // console.log('Query string:', queryString);
+      
+      // Only add the query string if there are actual parameters
+      const url = `/api/users${queryString ? `?${queryString}` : ''}`;
+      // console.log('Fetching URL:', url);
+      
+      const response = await api.get(url);
+      setUsers(response.data.users);
+      setTotalPages(response.data.pagination.totalPages);
+      setCurrentPage(response.data.pagination.currentPage);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      setError('Failed to load users');
+    } finally {
+      setLoading(false);
+      setShouldFetch(false);
     }
   };
 
-  const handleFilterChange = (filters) => {
-    setActiveFilters(filters);
-    console.log('Active filters:', filters);
+  // Initial load only
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  // Handle filter changes from FilterBar
+  const handleFilterChange = (newFilters) => {
+    console.log('Page receiving new filters:', newFilters);
+    setFilters(newFilters);
+    setShouldFetch(true); // This will trigger a new fetch
   };
+
+  // Effect to handle filter changes
+  useEffect(() => {
+    if (filters.search || filters.role !== 'all' || filters.status !== 'all' || filters.isVerified !== 'all') {
+      setShouldFetch(true);
+    }
+  }, [filters]); // Watch for any filter changes
+
+  // Only fetch when shouldFetch is true
+  useEffect(() => {
+    if (shouldFetch) {
+      fetchUsers();
+    }
+  }, [shouldFetch]);
 
   const handlePageChange = (page) => {
-    setCurrentPage(page);
-    console.log('Changing to page:', page);
+    fetchUsers();
   };
 
-  const usersPerPage = 10;
-  const indexOfLastUser = currentPage * usersPerPage;
-  const indexOfFirstUser = indexOfLastUser - usersPerPage;
-  const currentUsers = users.slice(indexOfFirstUser, indexOfLastUser);
+  const handleCreateUser = async (userData) => {
+    try {
+      // const response = await api.post('/api/users/create', userData);
+      // setUsers([...users, response.data.user]);
+      await api.post('/api/users', userData);
+      setIsModalOpen(false);
+      // return response.data;
+      await fetchUsers(); // Refresh users data immediately
+    } catch (error) {
+      console.error('Error creating user:', error);
+      throw error;
+    }
+  };
+
+  const handleEditUser = async (userData) => {
+    try {
+      console.log('EditingUser state:', editingUser);
+      console.log('Received userData:', userData);
+      
+      if (!editingUser?.id) {
+        throw new Error('User ID is required for editing');
+      }
+
+      await api.put(`/api/users/${editingUser.id}`, {
+        ...userData,
+        id: editingUser.id
+      });
+
+      setIsModalOpen(false);
+      await fetchUsers(); // Refresh users data immediately
+    } catch (error) {
+      console.error('Error updating user:', error);
+      throw error;
+    }
+  };
+
+  const handleUserAction = async (userId, action) => {
+    try {
+      switch (action) {
+        case 'edit':
+          // Since we're now passing the full user object, we don't need to find it
+          const userToEdit = typeof userId === 'object' ? userId : users.find(user => user.id === userId);
+          console.log('User to edit:', userToEdit); // Debug log
+          
+          if (!userToEdit) {
+            throw new Error('User not found');
+          }
+          
+          setEditingUser({
+            ...userToEdit,
+            location: userToEdit.location || '',
+            latitude: userToEdit.latitude || '',
+            longitude: userToEdit.longitude || ''
+          });
+          setIsModalOpen(true);
+          break;
+        case 'suspend':
+          try {
+            await api.put(`/api/users/${userId}/status`, {
+              status: 'suspended'
+            });
+            await fetchUsers(); // Refresh the list after suspension
+          } catch (error) {
+            console.error('Error suspending user:', error);
+            throw error;
+          }
+          break;
+        case 'activate':
+          try {
+            await api.put(`/api/users/${userId}/status`, {
+              status: 'active'
+            });
+            await fetchUsers(); // Refresh the list after activation
+          } catch (error) {
+            console.error('Error activating user:', error);
+            throw error;
+          }
+          break;
+        case 'delete':
+          try {
+            await api.delete(`/api/users/${userId}`);
+            await fetchUsers(); // Refresh the list after deletion
+          } catch (error) {
+            console.error('Error deleting user:', error);
+            throw error;
+          }
+          break;
+        case 'resendVerification':
+          try {
+            await api.post(`/users/${userId}/resend-verification`);
+            // toast({
+            //   title: "Verification email sent",
+            //   description: "A new verification email has been sent to the user.",
+            // });
+          } catch (error) {
+            console.error('Error resending verification:', error);
+            throw error;
+          }
+          break;
+        default:
+          console.log(`Unhandled action: ${action}`);
+      }
+    } catch (error) {
+      console.error(`Error performing user action ${action}:`, error);
+      // You might want to show an error message to the user here
+    }
+  };
+
+  if (loading) return <div>Loading users...</div>;
+  if (error) return (
+    <div className="p-4 text-red-500 bg-red-50 rounded">
+      <h3 className="font-bold">Error</h3>
+      <p>{error}</p>
+    </div>
+  );
 
   return (
     <div className="space-y-6">
@@ -83,26 +214,21 @@ const UsersPage = () => {
         </Button>
       </div>
 
-      <FilterBar onFilterChange={handleFilterChange} />
-
-      {activeFilters.length > 0 && (
-        <div className="bg-gray-100 p-3 rounded-md">
-          <h3 className="font-semibold mb-2">Active Filters:</h3>
-          {activeFilters.map((filter, index) => (
-            <span key={index} className="bg-white px-2 py-1 rounded-full text-sm mr-2">
-              {filter}
-            </span>
-          ))}
-        </div>
-      )}
+      <FilterBar 
+        onFilterChange={handleFilterChange}
+        initialFilters={filters}
+      />
 
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        <UsersTable users={currentUsers} onUserAction={handleUserAction} />
+        <UsersTable 
+          users={users} 
+          onUserAction={handleUserAction} 
+        />
       </div>
 
       <Pagination
         currentPage={currentPage}
-        totalPages={Math.ceil(users.length / usersPerPage)}
+        totalPages={totalPages}
         onPageChange={handlePageChange}
       />
 
@@ -120,5 +246,18 @@ const UsersPage = () => {
     </div>
   );
 };
+
+// Debounce utility function
+function debounce(func, wait) {
+  let timeout;
+  return function executedFunction(...args) {
+    const later = () => {
+      clearTimeout(timeout);
+      func(...args);
+    };
+    clearTimeout(timeout);
+    timeout = setTimeout(later, wait);
+  };
+}
 
 export default UsersPage;

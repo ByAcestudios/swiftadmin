@@ -20,10 +20,10 @@ import {
 
 const menuItems = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
+  // { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
   { name: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
   { name: 'Riders', href: '/dashboard/riders', icon: Users },
-  { name: 'To-do', href: '/dashboard/todo', icon: ClipboardList },
+  // { name: 'To-do', href: '/dashboard/todo', icon: ClipboardList },
   { name: 'Coupons', href: '/dashboard/coupons', icon: Tag },
   { 
     name: 'Users', 
@@ -34,8 +34,8 @@ const menuItems = [
       { name: 'Add User', href: '/dashboard/users/add' },
     ]
   },
-  { name: 'Team', href: '/dashboard/team', icon: Users2 },
-  { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
+  // { name: 'Team', href: '/dashboard/team', icon: Users2 },
+  // { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
   { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 

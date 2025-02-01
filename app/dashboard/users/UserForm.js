@@ -1,159 +1,236 @@
-import { useState, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import * as z from 'zod';
-import { X, Upload, User } from 'lucide-react';
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
-const schema = z.object({
-  name: z.string().min(2, { message: "Name must be at least 2 characters" }),
-  email: z.string().email({ message: "Invalid email address" }),
-  phoneNumber: z.string().regex(/^\+234\s\d{3}\s\d{3}\s\d{4}$/, { message: "Phone number must be in the format: +234 XXX XXX XXXX" }),
-  businessCategory: z.string().min(1, { message: "Business category is required" }),
-  location: z.enum(["Mainland", "Island", "Outskirt"], { message: "Please select a valid location" }),
-  status: z.enum(["Active", "Inactive", "Suspended", "New"], { message: "Please select a valid status" }),
-  password: z.string().min(8, { message: "Password must be at least 8 characters long" }).optional().or(z.literal('')),
-  retypePassword: z.string().optional().or(z.literal(''))
-}).refine((data) => data.password === data.retypePassword, {
-  message: "Passwords don't match",
-  path: ["retypePassword"],
-});
-
-const UserForm = ({ onSubmit, onCancel, initialData = null }) => {
-  const [profilePicture, setProfilePicture] = useState(null);
-  const { register, handleSubmit, formState: { errors }, setValue, reset } = useForm({
-    resolver: zodResolver(schema),
-    defaultValues: initialData || {}
+const UserForm = ({ onSubmit, onCancel, initialData }) => {
+  const [error, setError] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: initialData?.firstName || '',
+    lastName: initialData?.lastName || '',
+    email: initialData?.email || '',
+    password: '',
+    phoneNumber: initialData?.phoneNumber || '',
+    role: initialData?.role || 'user',
+    location: initialData?.location || '',
+    latitude: initialData?.latitude || '',
+    longitude: initialData?.longitude || ''
   });
 
-  useEffect(() => {
-    if (initialData) {
-      Object.keys(initialData).forEach(key => {
-        setValue(key, initialData[key]);
-      });
-      setProfilePicture(initialData.profilePicture);
-    }
-  }, [initialData, setValue]);
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    setIsSubmitting(true);
 
-  const handleProfilePictureChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setProfilePicture(reader.result);
-      };
-      reader.readAsDataURL(file);
-    }
-  };
+    try {
+      // Validation
+      if (!formData.firstName.trim()) {
+        throw new Error('First name is required');
+      }
+      if (!formData.lastName.trim()) {
+        throw new Error('Last name is required');
+      }
+      if (!formData.email.trim() || !formData.email.includes('@')) {
+        throw new Error('Valid email is required');
+      }
+      if (!initialData && !formData.password) {
+        throw new Error('Password is required for new users');
+      }
+      if (!['sub-admin', 'rider', 'user'].includes(formData.role)) {
+        throw new Error('Invalid role selected');
+      }
 
-  const submitForm = (data) => {
-    onSubmit({ ...data, profilePicture, id: initialData?.id });
+      // Prepare submission data
+      const submitData = { ...formData };
+      
+      // Don't send password if it's empty during edit
+      if (initialData && !submitData.password) {
+        delete submitData.password;
+      }
+
+      // Only include location fields if they have values
+      if (!submitData.location) delete submitData.location;
+      if (!submitData.latitude) delete submitData.latitude;
+      if (!submitData.longitude) delete submitData.longitude;
+
+      await onSubmit(submitData);
+    } catch (err) {
+      setError(err.message || 'Something went wrong');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
-    <form onSubmit={handleSubmit(submitForm)} className="space-y-6 p-8">
-      <div className="flex justify-between items-center border-b pb-4">
-        <h2 className="text-2xl font-bold text-gray-900">{initialData ? 'Edit User' : 'Create New User'}</h2>
-        <button type="button" onClick={onCancel} className="text-gray-400 hover:text-gray-500">
-          <X className="w-6 h-6" />
-        </button>
-      </div>
+    <form onSubmit={handleSubmit} className="space-y-6 p-6">
+      <div className="space-y-4">
+        <h2 className="text-lg font-semibold">
+          {initialData ? 'Edit User' : 'Create New User'}
+        </h2>
 
-      <div className="flex flex-col items-center space-y-4">
-        <div className="w-32 h-32 bg-gray-200 rounded-full overflow-hidden relative group">
-          {profilePicture ? (
-            <img src={profilePicture} alt="Profile" className="w-full h-full object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-gray-400">
-              <User className="w-16 h-16" />
+        {error && (
+          <div className="bg-red-50 border-l-4 border-red-400 p-4">
+            <div className="flex">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3">
+                <p className="text-sm text-red-700">
+                  {error}
+                </p>
+              </div>
             </div>
-          )}
-          <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-            <label className="cursor-pointer text-white text-sm font-medium">
-              <Upload className="w-6 h-6 mx-auto mb-1" />
-              Upload
-              <input type="file" className="hidden" accept="image/*" onChange={handleProfilePictureChange} />
-            </label>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="firstName">First Name *</Label>
+            <Input
+              id="firstName"
+              value={formData.firstName}
+              onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+              placeholder="John"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="lastName">Last Name *</Label>
+            <Input
+              id="lastName"
+              value={formData.lastName}
+              onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+              placeholder="Doe"
+            />
           </div>
         </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-6 mt-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Name</label>
-          <Input {...register('name')} />
-          {errors.name && <p className="mt-1 text-sm text-red-600">{errors.name.message}</p>}
+        <div className="space-y-2">
+          <Label htmlFor="email">Email *</Label>
+          <Input
+            id="email"
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            placeholder="john.doe@example.com"
+          />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Email</label>
-          <Input {...register('email')} type="email" />
-          {errors.email && <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>}
+        {!initialData && (
+          <div className="space-y-2">
+            <Label htmlFor="password">Password *</Label>
+            <Input
+              id="password"
+              type="password"
+              value={formData.password}
+              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+              placeholder="Enter secure password"
+            />
+          </div>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="phoneNumber">Phone Number</Label>
+          <Input
+            id="phoneNumber"
+            value={formData.phoneNumber}
+            onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
+            placeholder="+2347012345678"
+          />
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Phone Number</label>
-          <Input {...register('phoneNumber')} placeholder="+234 XXX XXX XXXX" />
-          {errors.phoneNumber && <p className="mt-1 text-sm text-red-600">{errors.phoneNumber.message}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Business Category</label>
-          <Input {...register('businessCategory')} />
-          {errors.businessCategory && <p className="mt-1 text-sm text-red-600">{errors.businessCategory.message}</p>}
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Location</label>
-          <Select onValueChange={(value) => setValue('location', value)}>
+        <div className="space-y-2">
+          <Label htmlFor="role">Role *</Label>
+          <Select
+            value={formData.role}
+            onValueChange={(value) => setFormData({ ...formData, role: value })}
+          >
             <SelectTrigger>
-              <SelectValue placeholder="Select a location" />
+              <SelectValue placeholder="Select role" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="Mainland">Mainland</SelectItem>
-              <SelectItem value="Island">Island</SelectItem>
-              <SelectItem value="Outskirt">Outskirt</SelectItem>
+              <SelectItem value="user">User</SelectItem>
+              <SelectItem value="sub-admin">Sub Admin</SelectItem>
+              <SelectItem value="rider">Rider</SelectItem>
             </SelectContent>
           </Select>
-          {errors.location && <p className="mt-1 text-sm text-red-600">{errors.location.message}</p>}
         </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Status</label>
-          <Select onValueChange={(value) => setValue('status', value)}>
-            <SelectTrigger>
-              <SelectValue placeholder="Select a status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="Active">Active</SelectItem>
-              <SelectItem value="Inactive">Inactive</SelectItem>
-              <SelectItem value="Suspended">Suspended</SelectItem>
-              <SelectItem value="New">New</SelectItem>
-            </SelectContent>
-          </Select>
-          {errors.status && <p className="mt-1 text-sm text-red-600">{errors.status.message}</p>}
-        </div>
+        {formData.role === 'user' && (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="location">Location</Label>
+              <Input
+                id="location"
+                value={formData.location}
+                onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                placeholder="e.g., Lagos, Nigeria"
+              />
+            </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Password</label>
-          <Input {...register('password')} type="password" />
-          {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password.message}</p>}
-        </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="latitude">Latitude</Label>
+                <Input
+                  id="latitude"
+                  type="number"
+                  step="any"
+                  value={formData.latitude}
+                  onChange={(e) => setFormData({ ...formData, latitude: parseFloat(e.target.value) || '' })}
+                  placeholder="e.g., 6.5244"
+                />
+              </div>
 
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Re-type Password</label>
-          <Input {...register('retypePassword')} type="password" />
-          {errors.retypePassword && <p className="mt-1 text-sm text-red-600">{errors.retypePassword.message}</p>}
-        </div>
+              <div className="space-y-2">
+                <Label htmlFor="longitude">Longitude</Label>
+                <Input
+                  id="longitude"
+                  type="number"
+                  step="any"
+                  value={formData.longitude}
+                  onChange={(e) => setFormData({ ...formData, longitude: parseFloat(e.target.value) || '' })}
+                  placeholder="e.g., 3.3792"
+                />
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
-      <div className="flex justify-end space-x-3 pt-6 border-t">
-        <Button variant="outline" onClick={onCancel}>
+      <div className="flex justify-end space-x-4">
+        <Button 
+          type="button" 
+          variant="outline" 
+          onClick={onCancel}
+          disabled={isSubmitting}
+        >
           Cancel
         </Button>
-        <Button type="submit">{initialData ? 'Update User' : 'Create User'}</Button>
+        <Button 
+          type="submit"
+          disabled={isSubmitting}
+          className="min-w-[100px]"
+        >
+          {isSubmitting ? (
+            <>
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              {initialData ? 'Updating...' : 'Creating...'}
+            </>
+          ) : (
+            initialData ? 'Update User' : 'Create User'
+          )}
+        </Button>
       </div>
     </form>
   );

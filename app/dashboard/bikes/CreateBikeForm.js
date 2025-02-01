@@ -11,7 +11,7 @@ import { format } from "date-fns";
 import { CalendarIcon } from "lucide-react";
 import api from '@/lib/api';
 
-const CreateBikeForm = () => {
+const CreateBikeForm = ({ onClose }) => {
   const router = useRouter();
   const [bikeDetails, setBikeDetails] = useState({
     name: '',
@@ -173,7 +173,7 @@ const CreateBikeForm = () => {
         </div>
       </div>
       <div className="flex justify-between">
-        <Button type="button" onClick={() => router.push('/dashboard/bikes')} className="bg-gray-500 hover:bg-gray-600 text-white">
+        <Button type="button" onClick={onClose} className="bg-gray-500 hover:bg-gray-600 text-white">
           Go Back
         </Button>
         <Button type="submit" className="bg-[#733E70] hover:bg-[#62275F] text-white">

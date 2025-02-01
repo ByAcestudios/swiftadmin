@@ -23,8 +23,12 @@ import {
   
   const menuItems = [
     { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
-    { name: 'Orders', href: '/dashboard/orders', icon: ShoppingCart },
+    // { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
+    { name: 'Orders', href: '/dashboard/orders', icon: ShoppingCart, subItems: [
+      { name: 'All Orders', href: '/dashboard/orders' },
+      { name: 'Assigned Orders', href: '/dashboard/orders/assigned' },
+      { name: 'Unassigned Orders', href: '/dashboard/orders/unassigned' },
+    ] },
     { name: 'Riders', href: '/dashboard/riders', icon: Users },
     { 
       name: 'Bikes', 
@@ -36,7 +40,7 @@ import {
       //   { name: 'Maintenance', href: '/dashboard/bikes/maintenance' },
       // ]
     },
-    { name: 'To-do', href: '/dashboard/todo', icon: ClipboardList },
+    // { name: 'To-do', href: '/dashboard/todo', icon: ClipboardList },
     { name: 'Coupons', href: '/dashboard/coupons', icon: Tag },
     { 
       name: 'Users', 
@@ -47,8 +51,8 @@ import {
         // { name: 'Add User', href: '/dashboard/users/add' },
       ]
     },
-    { name: 'Team', href: '/dashboard/team', icon: Users2 },
-    { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
+    // { name: 'Team', href: '/dashboard/team', icon: Users2 },
+    // { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
     { name: 'Settings', href: '/dashboard/settings', icon: Settings },
   ];
 
