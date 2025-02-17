@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,12 +18,6 @@ import {
 } from "@/components/ui/dialog";
 import api from '@/lib/api';
 
-const orderTypes = [
-  { id: "instant", label: "Instant Delivery" },
-  { id: "sameDay", label: "Same Day" },
-  { id: "nextDay", label: "Next Day" },
-];
-
 const EditCouponForm = ({ coupon, open, onClose, onSuccess }) => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -34,12 +28,42 @@ const EditCouponForm = ({ coupon, open, onClose, onSuccess }) => {
     code: coupon.code,
     description: coupon.description,
     discountPercentage: coupon.discountPercentage,
+    maxDiscountAmount: coupon.maxDiscountAmount || '',
     startDate: new Date(coupon.startDate),
     expiryDate: new Date(coupon.expiryDate),
     maxUses: coupon.maxUses || '',
     minOrderAmount: coupon.minOrderAmount || '',
     applicableOrderTypes: coupon.applicableOrderTypes || [],
   });
+  const [orderTypes, setOrderTypes] = useState([]);
+
+  useEffect(() => {
+    const fetchOrderTypes = async () => {
+      try {
+        const response = await api.get('/api/settings/keys', {
+          params: { keys: 'orderType' }
+        });
+        
+        // Map the array of order types to the required format
+        const formattedOrderTypes = response.data.orderType.map(type => ({
+          id: type,
+          label: type === 'instant' ? 'Instant Delivery' :
+                 type === 'sameday' ? 'Same Day' :
+                 type === 'nextday' ? 'Next Day' : type
+        }));
+        
+        setOrderTypes(formattedOrderTypes);
+      } catch (error) {
+        console.error('Error fetching order types:', error);
+        toast({
+          variant: "destructive",
+          description: "Failed to load order types. Please try again.",
+        });
+      }
+    };
+
+    fetchOrderTypes();
+  }, []);
 
   const validateForm = () => {
     const errors = {};
@@ -63,6 +87,11 @@ const EditCouponForm = ({ coupon, open, onClose, onSuccess }) => {
 
     if (couponDetails.startDate >= couponDetails.expiryDate) {
       errors.expiryDate = 'Expiry date must be after start date';
+    }
+
+    const maxDiscount = parseFloat(couponDetails.maxDiscountAmount);
+    if (couponDetails.maxDiscountAmount && (isNaN(maxDiscount) || maxDiscount <= 0)) {
+      errors.maxDiscountAmount = 'Maximum discount amount must be greater than 0';
     }
 
     setValidationErrors(errors);
@@ -164,6 +193,24 @@ const EditCouponForm = ({ coupon, open, onClose, onSuccess }) => {
                 error={validationErrors.discountPercentage}
                 required
               />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="maxDiscountAmount">Maximum Discount Amount (Optional)</Label>
+              <Input
+                id="maxDiscountAmount"
+                name="maxDiscountAmount"
+                type="number"
+                min="0"
+                step="0.01"
+                placeholder="Enter amount in ₦"
+                value={couponDetails.maxDiscountAmount}
+                onChange={handleChange}
+                error={validationErrors.maxDiscountAmount}
+              />
+              <p className="text-sm text-gray-500">
+                Leave empty for no maximum discount limit
+              </p>
             </div>
 
             <div className="grid gap-2">

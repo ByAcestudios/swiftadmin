@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,12 +12,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import api from '@/lib/api';
 
-const orderTypes = [
-  { id: "instant", label: "Instant Delivery" },
-  { id: "sameDay", label: "Same Day Delivery" },
-  { id: "nextDay", label: "Scheduled Delivery" },
-];
-
 const CreateCouponForm = ({ onClose, onSuccess }) => {
   const { toast } = useToast();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -28,12 +22,42 @@ const CreateCouponForm = ({ onClose, onSuccess }) => {
     code: '',
     description: '',
     discountPercentage: '',
+    maxDiscountAmount: '',
     startDate: new Date(),
     expiryDate: new Date(),
     maxUses: '',
     minOrderAmount: '',
     applicableOrderTypes: [],
   });
+  const [orderTypes, setOrderTypes] = useState([]);
+
+  useEffect(() => {
+    const fetchOrderTypes = async () => {
+      try {
+        const response = await api.get('/api/settings/keys', {
+          params: { keys: 'orderType' }
+        });
+        
+        // Map the array of order types to the required format
+        const formattedOrderTypes = response.data.orderType.map(type => ({
+          id: type,
+          label: type === 'instant' ? 'Instant Delivery' :
+                 type === 'sameday' ? 'Same Day' :
+                 type === 'nextday' ? 'Next Day' : type
+        }));
+        
+        setOrderTypes(formattedOrderTypes);
+      } catch (error) {
+        console.error('Error fetching order types:', error);
+        toast({
+          variant: "destructive",
+          description: "Failed to load order types. Please try again.",
+        });
+      }
+    };
+
+    fetchOrderTypes();
+  }, []);
 
   const validateForm = () => {
     const errors = {};
@@ -84,6 +108,11 @@ const CreateCouponForm = ({ onClose, onSuccess }) => {
       if (amount < 0) {
         errors.minOrderAmount = 'Minimum order amount cannot be negative';
       }
+    }
+
+    const maxDiscount = parseFloat(couponDetails.maxDiscountAmount);
+    if (couponDetails.maxDiscountAmount && (isNaN(maxDiscount) || maxDiscount <= 0)) {
+      errors.maxDiscountAmount = 'Maximum discount amount must be greater than 0';
     }
 
     setValidationErrors(errors);
@@ -150,6 +179,7 @@ const CreateCouponForm = ({ onClose, onSuccess }) => {
       if (payload.applicableOrderTypes.length === 0) {
         delete payload.applicableOrderTypes;
       }
+      if (!payload.maxDiscountAmount) delete payload.maxDiscountAmount;
 
       const response = await api.post('/api/coupons', payload);
       
@@ -245,6 +275,23 @@ const CreateCouponForm = ({ onClose, onSuccess }) => {
             onChange={handleChange}
           />
           <span className="text-xs text-gray-500">Leave empty for no minimum amount</span>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="maxDiscountAmount">Maximum Discount Amount (Optional)</Label>
+          <Input
+            id="maxDiscountAmount"
+            name="maxDiscountAmount"
+            type="number"
+            min="0"
+            step="0.01"
+            placeholder="Enter amount in ₦"
+            value={couponDetails.maxDiscountAmount}
+            onChange={handleChange}
+          />
+          {validationErrors.maxDiscountAmount && (
+            <span className="text-xs text-red-500">{validationErrors.maxDiscountAmount}</span>
+          )}
+          <span className="text-xs text-gray-500">Leave empty for no maximum discount limit</span>
         </div>
       </div>
 

@@ -243,7 +243,10 @@ const CouponsPage = () => {
               <div className="space-y-3">
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Discount</span>
-                  <span className="font-medium text-purple-700">{coupon.discountPercentage}%</span>
+                  <span className="font-medium text-purple-700">
+                    {coupon.discountPercentage}% 
+                    {coupon.maxDiscountAmount && ` (up to ₦${parseFloat(coupon.maxDiscountAmount).toLocaleString()})`}
+                  </span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span className="text-gray-600">Uses</span>

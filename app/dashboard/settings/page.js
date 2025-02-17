@@ -66,47 +66,52 @@ const SettingsPage = () => {
         return;
       }
 
-      // Ensure settings is an array
-      const settingsArray = Array.isArray(response.data.settings) 
-        ? response.data.settings 
-        : [];
-
-      // Create a map of existing settings with defensive checks
-      const existingSettings = settingsArray.reduce((acc, setting) => {
+      // Create a map of existing settings with case-insensitive keys
+      const existingSettings = response.data.settings.reduce((acc, setting) => {
         if (!setting || !setting.key) return acc;
-
-        // Find the correct category from config with null checks
+        
+        // Store settings with lowercase keys for case-insensitive matching
+        const lowerKey = setting.key.toLowerCase();
+        
+        // Find the correct category from config
         const category = Object.keys(response.data.config || {}).find(cat => 
           response.data.config[cat]?.settings && 
-          Object.keys(response.data.config[cat].settings).includes(setting.key)
+          Object.keys(response.data.config[cat].settings)
+            .map(k => k.toLowerCase())
+            .includes(lowerKey)
         ) || setting.category || 'general';
 
         return {
           ...acc,
-          [setting.key]: {
+          [lowerKey]: {
             ...setting,
             category
           }
         };
       }, {});
 
-      // Create settings array from config with defensive checks
+      // Create settings array from config
       const configuredSettings = Object.entries(response.data.config || {}).flatMap(([category, categoryData]) => {
         if (!categoryData?.settings) return [];
         
-        return Object.keys(categoryData.settings).map(key => ({
-          key,
-          value: existingSettings[key]?.value ?? null,
-          category,
-          isPublic: existingSettings[key]?.isPublic ?? true,
-          description: existingSettings[key]?.description ?? categoryData.settings[key]?.description ?? '',
-          id: existingSettings[key]?.id ?? null
-        }));
+        return Object.keys(categoryData.settings).map(key => {
+          const lowerKey = key.toLowerCase();
+          const existingSetting = existingSettings[lowerKey];
+          
+          return {
+            key,
+            value: existingSetting?.value ?? null,
+            category,
+            isPublic: existingSetting?.isPublic ?? true,
+            description: existingSetting?.description ?? categoryData.settings[key]?.description ?? '',
+            id: existingSetting?.id ?? null
+          };
+        });
       });
 
       // Merge with any existing settings that aren't in config
-      const additionalSettings = settingsArray.filter(
-        setting => setting && setting.key && !configuredSettings.some(s => s.key === setting.key)
+      const additionalSettings = response.data.settings.filter(
+        setting => setting && setting.key && !configuredSettings.some(s => s.key.toLowerCase() === setting.key.toLowerCase())
       );
 
       setSettingsData({
@@ -125,10 +130,23 @@ const SettingsPage = () => {
   const handleSave = async () => {
     try {
       setLoading(true);
-      const settingsToUpdate = settingsData.settings.reduce((acc, setting) => ({
-        ...acc,
-        [setting.key]: setting.value
-      }), {});
+      
+      // Create a map of correct key cases from config
+      const keyMap = Object.entries(settingsData.config).reduce((acc, [category, categoryData]) => {
+        Object.keys(categoryData.settings || {}).forEach(key => {
+          acc[key.toLowerCase()] = key;
+        });
+        return acc;
+      }, {});
+
+      // Use correct case when building settings object
+      const settingsToUpdate = settingsData.settings.reduce((acc, setting) => {
+        const correctKey = keyMap[setting.key.toLowerCase()] || setting.key;
+        return {
+          ...acc,
+          [correctKey]: setting.value
+        };
+      }, {});
 
       console.log('Sending settings update:', { settings: settingsToUpdate });
 
@@ -147,23 +165,44 @@ const SettingsPage = () => {
   };
 
   const handleChange = (key, value) => {
+    // Use the original case from config when updating state
+    const correctKey = Object.entries(settingsData.config).reduce((acc, [category, categoryData]) => {
+      const foundKey = Object.keys(categoryData.settings || {}).find(k => 
+        k.toLowerCase() === key.toLowerCase()
+      );
+      return foundKey || acc;
+    }, key);
+
     setSettingsData(prev => ({
       ...prev,
       settings: prev.settings.map(setting => 
-        setting.key === key 
-          ? { ...setting, value } 
+        setting.key.toLowerCase() === key.toLowerCase()
+          ? { ...setting, key: correctKey, value } 
           : setting
       )
     }));
   };
 
   const getSettingConfig = (category, key) => {
-    return settingsData.config[category]?.settings[key] || {};
+    // Find setting config case-insensitively
+    const categoryConfig = settingsData.config[category];
+    if (!categoryConfig?.settings) return {};
+
+    const configKey = Object.keys(categoryConfig.settings).find(k => 
+      k.toLowerCase() === key.toLowerCase()
+    );
+    
+    return configKey ? categoryConfig.settings[configKey] : {};
   };
 
   const getSettingValue = (key) => {
-    const setting = settingsData.settings.find(s => s.key === key);
+    // Find setting case-insensitively
+    const setting = settingsData.settings.find(s => 
+      s.key.toLowerCase() === key.toLowerCase()
+    );
+    
     if (!setting) {
+      console.log(`No setting found for key: ${key}`);
       const newSetting = {
         key,
         value: null,
@@ -177,12 +216,16 @@ const SettingsPage = () => {
       }));
       return null;
     }
+    
+    console.log(`Found setting for ${key}:`, setting); // Debug log
     return setting.value;
   };
 
   const renderSettingInput = (category, key) => {
     const config = getSettingConfig(category, key);
     const value = getSettingValue(key);
+
+    console.log(`Rendering input for ${key}:`, { config, value }); // Debug log
 
     switch (config.type) {
       case 'number':
@@ -322,6 +365,14 @@ const SettingsPage = () => {
     }
   };
 
+  const handleSectionEdit = (category) => {
+    setIsEditing(true);
+  };
+
+  const handleSectionSave = async () => {
+    await handleSave();
+  };
+
   if (initialLoad) return <div>Loading settings...</div>;
   if (error) return (
     <div className="p-4 text-red-500 bg-red-50 rounded">
@@ -331,132 +382,81 @@ const SettingsPage = () => {
   );
 
   return (
-    <div className="space-y-6 p-6">
+    <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Settings</h1>
-        <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => setShowInstructions(!showInstructions)}
-          >
-            <Info className="w-4 h-4 mr-2" /> Instructions
-          </Button>
-          {isEditing ? (
-            <Button onClick={handleSave} disabled={loading}>
-              <Save className="w-4 h-4 mr-2" /> Save Changes
-            </Button>
-          ) : (
-            <Button onClick={() => setIsEditing(true)}>
-              <Edit className="w-4 h-4 mr-2" /> Edit Settings
-            </Button>
-          )}
-        </div>
+        <h1 className="text-2xl font-bold">Settings</h1>
+        <Button
+          variant="outline"
+          onClick={() => setShowInstructions(!showInstructions)}
+        >
+          <Info className="h-4 w-4 mr-2" />
+          Help
+        </Button>
       </div>
+
+      {Object.entries(settingsData.config || {}).map(([category, categoryData]) => (
+        <div key={category} className="bg-white rounded-lg shadow p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold">{categoryData.label}</h2>
+            <div>
+              {isEditing ? (
+                <Button 
+                  onClick={handleSectionSave}
+                  disabled={loading}
+                  className="ml-2"
+                >
+                  <Save className="h-4 w-4 mr-2" />
+                  Save Changes
+                </Button>
+              ) : (
+                <Button 
+                  onClick={() => handleSectionEdit(category)}
+                  disabled={loading}
+                  variant="outline"
+                >
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit Section
+                </Button>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {Object.entries(categoryData.settings || {}).map(([key, setting]) => {
+              const existingSetting = settingsData.settings.find(s => 
+                s.key.toLowerCase() === key.toLowerCase()
+              );
+              
+              return (
+                <div key={key} className="space-y-2">
+                  <div className="flex justify-between items-start">
+                    <Label className="font-medium">
+                      {setting.label}
+                      {setting.description && (
+                        <span className="block text-sm text-gray-500">
+                          {setting.description}
+                        </span>
+                      )}
+                    </Label>
+                  </div>
+                  {renderSettingInput(category, key)}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ))}
 
       {successMessage && (
-        <div className="bg-green-50 border-l-4 border-green-500 p-4 text-green-700">
-          <div className="flex">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium">{successMessage}</p>
-            </div>
-          </div>
+        <div className="fixed bottom-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+          {successMessage}
         </div>
       )}
 
-      {showInstructions && (
-        <div className="bg-blue-100 border-l-4 border-blue-500 text-blue-700 p-6 space-y-4">
-          <h3 className="font-bold text-lg">How to Use Settings</h3>
-          
-          <div>
-            <p className="font-semibold">Basic Steps:</p>
-            <ol className="list-decimal list-inside mt-2 space-y-2">
-              <li>Click the &quot;Edit Settings&quot; button at the top right to start making changes</li>
-              <li>Update any settings you need to change</li>
-              <li>Click &quot;Save Changes&quot; when you&apos;re done</li>
-            </ol>
-          </div>
-
-          <div className="space-y-2">
-            <p className="font-semibold">What Each Section Means:</p>
-            
-            <div className="ml-4 space-y-3">
-              <div>
-                <p className="font-medium">🛍️ Order Management</p>
-                <p className="text-sm">Controls how orders work: cancellation reasons, maximum order values, and how long before orders auto-cancel.</p>
-              </div>
-
-              <div>
-                <p className="font-medium">🚲 Rider Management</p>
-                <p className="text-sm">Settings for delivery riders: their performance scores, how many orders they can handle, and their working area.</p>
-              </div>
-
-              <div>
-                <p className="font-medium">🏪 Business Categories</p>
-                <p className="text-sm">Manage what types of businesses can use the platform and what items they can/cannot deliver.</p>
-              </div>
-
-              <div>
-                <p className="font-medium">⏰ Scheduling</p>
-                <p className="text-sm">Control when bikes are available, peak hours, and how far in advance orders can be booked.</p>
-              </div>
-
-              <div>
-                <p className="font-medium">💰 Pricing & Fees</p>
-                <p className="text-sm">Set all delivery fees, rates per kilometer, waiting charges, and distance limits.</p>
-              </div>
-
-              <div>
-                <p className="font-medium">⚙️ System Behavior</p>
-                <p className="text-sm">Control how the system works: automatic order assignment, GPS tracking, and delivery limits.</p>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <p className="font-semibold">Tips:</p>
-            <ul className="list-disc list-inside mt-2 space-y-2">
-              <li>For lists (like cancellation reasons), click &quot;Add Item&quot; to add more options</li>
-              <li>Time ranges need both a start and end time</li>
-              <li>Numbers will automatically stay within their allowed ranges</li>
-              <li>Toggle switches can be turned on/off with a single click</li>
-              <li>Don&apos;t forget to save your changes!</li>
-            </ul>
-          </div>
-
-          <div className="mt-4 bg-yellow-50 p-3 rounded">
-            <p className="font-semibold text-yellow-800">⚠️ Important Note:</p>
-            <p className="text-sm text-yellow-800">
-              Changes to these settings will affect how the entire delivery system works. If you&apos;re unsure about a setting, please check with your supervisor before making changes.
-            </p>
-          </div>
+      {error && (
+        <div className="fixed bottom-4 right-4 bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+          {error}
         </div>
       )}
-
-      <div className="space-y-8">
-        {Object.entries(settingsData.config || {}).map(([category, categoryData]) => {
-          if (!categoryData?.settings) return null;
-          
-          return (
-            <div key={category} className="bg-white p-6 rounded-lg shadow-md space-y-4">
-              <h2 className="text-xl font-semibold">{categoryData.label || category}</h2>
-              <div className="grid gap-6">
-                {Object.entries(categoryData.settings).map(([key, config]) => (
-                  <div key={key} className="space-y-2">
-                    <Label className="font-medium">{config?.label || key}</Label>
-                    <p className="text-sm text-gray-500">{config?.description}</p>
-                    {renderSettingInput(category, key)}
-                  </div>
-                ))}
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 };

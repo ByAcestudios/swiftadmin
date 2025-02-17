@@ -251,6 +251,27 @@ const RiderDetailsModal = ({ riderId, onClose }) => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
+              <Label htmlFor="phoneNumber">Phone Number</Label>
+              <Input
+                id="phoneNumber"
+                name="phoneNumber"
+                value={riderDetails.phoneNumber}
+                onChange={handleChange}
+                disabled={!isEditing}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                name="email"
+                type="email"
+                value={riderDetails.email}
+                onChange={handleChange}
+                disabled={!isEditing}
+              />
+            </div>
+            <div className="space-y-2">
               <Label htmlFor="dateOfBirth">Date of Birth</Label>
               <Popover>
                 <PopoverTrigger asChild>
