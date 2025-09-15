@@ -218,6 +218,13 @@ const SettingsPage = () => {
     }
     
     console.log(`Found setting for ${key}:`, setting); // Debug log
+    
+    // For select fields, if value is empty string, return the default value from config
+    const config = getSettingConfig(setting.category, key);
+    if (config.type === 'select' && (setting.value === '' || setting.value === null)) {
+      return config.defaultValue || '';
+    }
+    
     return setting.value;
   };
 
@@ -256,7 +263,7 @@ const SettingsPage = () => {
       case 'select':
         return (
           <Select
-            value={value ?? ''}
+            value={value ?? config.defaultValue ?? ''}
             onValueChange={(value) => handleChange(key, value)}
             disabled={!isEditing}
           >
@@ -264,11 +271,17 @@ const SettingsPage = () => {
               <SelectValue placeholder={`Select ${config.label}`} />
             </SelectTrigger>
             <SelectContent>
-              {config.options?.map(option => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
+              {config.options?.map(option => {
+                // Handle both string options and object options
+                const optionValue = typeof option === 'string' ? option : option.value;
+                const optionLabel = typeof option === 'string' ? option : option.label;
+                
+                return (
+                  <SelectItem key={optionValue} value={optionValue}>
+                    {optionLabel}
+                  </SelectItem>
+                );
+              })}
             </SelectContent>
           </Select>
         );
