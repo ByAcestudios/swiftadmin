@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, X } from "lucide-react";
@@ -22,39 +22,45 @@ const FilterBar = ({ onFilterChange, initialFilters = {
   const [selectedStatus, setSelectedStatus] = useState(initialFilters.status);
   const [selectedVerification, setSelectedVerification] = useState(initialFilters.isVerified);
   const debouncedSearch = useDebounce(searchTerm, 200);
+  
+  // Use ref to track previous filters and prevent unnecessary updates
+  const prevFiltersRef = useRef({
+    search: debouncedSearch,
+    role: selectedRole,
+    status: selectedStatus,
+    isVerified: selectedVerification
+  });
+  const isInitialMount = useRef(true);
 
-  const updateFilters = () => {
-    console.log('FilterBar updating filters with:', {
+  useEffect(() => {
+    const newFilters = {
       search: debouncedSearch,
       role: selectedRole,
       status: selectedStatus,
       isVerified: selectedVerification
-    });
+    };
     
-    onFilterChange({
-      search: debouncedSearch,
-      role: selectedRole,
-      status: selectedStatus,
-      isVerified: selectedVerification
-    });
-  };
-
-  // Separate useEffect for each filter change
-  useEffect(() => {
-    updateFilters();
-  }, [debouncedSearch]);
-
-  useEffect(() => {
-    updateFilters();
-  }, [selectedRole]);
-
-  useEffect(() => {
-    updateFilters();
-  }, [selectedStatus]);
-
-  useEffect(() => {
-    updateFilters();
-  }, [selectedVerification]);
+    // Skip on initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      prevFiltersRef.current = newFilters;
+      return;
+    }
+    
+    // Only call onFilterChange if filters actually changed
+    const prevFilters = prevFiltersRef.current;
+    const hasChanged = 
+      prevFilters.search !== newFilters.search ||
+      prevFilters.role !== newFilters.role ||
+      prevFilters.status !== newFilters.status ||
+      prevFilters.isVerified !== newFilters.isVerified;
+    
+    if (hasChanged) {
+      console.log('FilterBar updating filters with:', newFilters);
+      prevFiltersRef.current = newFilters;
+      onFilterChange(newFilters);
+    }
+  }, [debouncedSearch, selectedRole, selectedStatus, selectedVerification, onFilterChange]);
 
   const clearFilters = () => {
     setSearchTerm('');

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { UsersTable } from "./UsersTable";
 import FilterBar from './FilterBar';
 import Pagination from './Pagination';
@@ -26,11 +26,16 @@ const UsersPage = () => {
     isVerified: 'all'
   });
   const [shouldFetch, setShouldFetch] = useState(false);
+  const isInitialMount = useRef(true);
+  const prevFiltersRef = useRef(filters);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async (page = currentPage) => {
     try {
       // console.log('Fetching users with filters:', filters);
       const queryParams = new URLSearchParams();
+      
+      // Always include page parameter
+      queryParams.append('page', page.toString());
       
       // Only add parameters if they have meaningful values
       if (filters.search?.trim()) queryParams.append('search', filters.search.trim());
@@ -41,14 +46,14 @@ const UsersPage = () => {
       const queryString = queryParams.toString();
       // console.log('Query string:', queryString);
       
-      // Only add the query string if there are actual parameters
-      const url = `/api/users${queryString ? `?${queryString}` : ''}`;
+      const url = `/api/users?${queryString}`;
       // console.log('Fetching URL:', url);
       
       const response = await api.get(url);
       setUsers(response.data.users);
       setTotalPages(response.data.pagination.totalPages);
-      setCurrentPage(response.data.pagination.currentPage);
+      // Use the page we requested, not what the API returns (to avoid resetting)
+      setCurrentPage(page);
     } catch (error) {
       console.error('Error fetching users:', error);
       setError('Failed to load users');
@@ -56,36 +61,72 @@ const UsersPage = () => {
       setLoading(false);
       setShouldFetch(false);
     }
-  };
+  }, [filters]);
 
   // Initial load only
   useEffect(() => {
-    fetchUsers();
+    fetchUsers(1);
   }, []);
 
-  // Handle filter changes from FilterBar
-  const handleFilterChange = (newFilters) => {
-    console.log('Page receiving new filters:', newFilters);
-    setFilters(newFilters);
-    setShouldFetch(true); // This will trigger a new fetch
-  };
-
-  // Effect to handle filter changes
+  // Handle filter changes from FilterBar - use useCallback to prevent infinite loops
+  const handleFilterChange = useCallback((newFilters) => {
+    setFilters(prevFilters => {
+      // Only update if filters actually changed
+      const hasChanged = 
+        prevFilters.search !== newFilters.search ||
+        prevFilters.role !== newFilters.role ||
+        prevFilters.status !== newFilters.status ||
+        prevFilters.isVerified !== newFilters.isVerified;
+      
+      if (!hasChanged) {
+        return prevFilters; // Return same object if no change
+      }
+      
+      return newFilters;
+    });
+  }, []);
+  
+  // Effect to handle filter changes and fetch when filters actually change
   useEffect(() => {
-    if (filters.search || filters.role !== 'all' || filters.status !== 'all' || filters.isVerified !== 'all') {
-      setShouldFetch(true);
+    // Skip initial mount
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      prevFiltersRef.current = filters;
+      return;
     }
-  }, [filters]); // Watch for any filter changes
+    
+    // Check if filters actually changed
+    const prevFilters = prevFiltersRef.current;
+    const hasChanged = 
+      prevFilters.search !== filters.search ||
+      prevFilters.role !== filters.role ||
+      prevFilters.status !== filters.status ||
+      prevFilters.isVerified !== filters.isVerified;
+    
+    if (hasChanged) {
+      console.log('Filters changed, fetching page 1:', filters);
+      prevFiltersRef.current = filters;
+      setCurrentPage(1);
+      setLoading(true);
+      fetchUsers(1);
+    }
+  }, [filters, fetchUsers]);
+
+  // Effect to handle filter changes - removed to prevent unwanted page resets
+  // Filter changes are handled by handleFilterChange which already resets to page 1
 
   // Only fetch when shouldFetch is true
   useEffect(() => {
     if (shouldFetch) {
-      fetchUsers();
+      fetchUsers(currentPage);
     }
   }, [shouldFetch]);
 
   const handlePageChange = (page) => {
-    fetchUsers();
+    setCurrentPage(page);
+    setLoading(true);
+    setShouldFetch(false); // Prevent the useEffect from interfering
+    fetchUsers(page);
   };
 
   const handleCreateUser = async (userData) => {
