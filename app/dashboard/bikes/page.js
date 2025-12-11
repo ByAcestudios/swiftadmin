@@ -7,7 +7,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from "@/components/ui/badge";
-import Pagination from '@/components/ui/pagination';
+import Pagination from '../users/Pagination';
 import CreateBikeForm from './CreateBikeForm';
 import BikeDetailsModal from './BikeDetailsModal';
 import api from '@/lib/api';
