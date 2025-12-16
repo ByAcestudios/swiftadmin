@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { Edit, Save, Info } from 'lucide-react';
+import { Edit, Save, Info, Clock, Calendar } from 'lucide-react';
 import api from '@/lib/api';
 
 /* eslint-disable react-hooks/exhaustive-deps */
@@ -225,6 +225,23 @@ const SettingsPage = () => {
       return config.defaultValue || '';
     }
     
+    // For delivery restrictions, ensure proper structure
+    const isDeliveryRestriction = config.type === 'deliveryRestriction' || 
+                                  key.toLowerCase().includes('deliveryrestrictions') ||
+                                  key.toLowerCase().includes('deliveryrestriction');
+    
+    if (isDeliveryRestriction) {
+      if (!setting.value || typeof setting.value !== 'object') {
+        return { enabled: true, pauseUntil: null, dailyCutoff: null, dailyStart: null };
+      }
+      return {
+        enabled: setting.value.enabled ?? true,
+        pauseUntil: setting.value.pauseUntil ?? null,
+        dailyCutoff: setting.value.dailyCutoff ?? null,
+        dailyStart: setting.value.dailyStart ?? null
+      };
+    }
+    
     return setting.value;
   };
 
@@ -234,7 +251,14 @@ const SettingsPage = () => {
 
     console.log(`Rendering input for ${key}:`, { config, value }); // Debug log
 
-    switch (config.type) {
+    // Check if this is a delivery restriction by key name (fallback if not in config)
+    const isDeliveryRestriction = key.toLowerCase().includes('deliveryrestrictions') || 
+                                  key.toLowerCase().includes('deliveryrestriction');
+    
+    // Use config type if available, otherwise infer from key name
+    const inputType = config.type || (isDeliveryRestriction ? 'deliveryRestriction' : 'string');
+
+    switch (inputType) {
       case 'number':
         return (
           <Input
@@ -367,6 +391,174 @@ const SettingsPage = () => {
           </div>
         );
 
+      case 'deliveryRestriction':
+        const restriction = value || { enabled: true, pauseUntil: null, dailyCutoff: null, dailyStart: null };
+        const deliveryType = key.includes('instant') ? 'Instant' : key.includes('sameDay') ? 'Same Day' : 'Next Day';
+        
+        return (
+          <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+            {/* Enabled Toggle */}
+            <div className="flex items-center justify-between">
+              <Label className="font-medium">Enable {deliveryType} Deliveries</Label>
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id={`${key}-enabled`}
+                  checked={restriction.enabled ?? true}
+                  onChange={(e) => handleChange(key, { ...restriction, enabled: e.target.checked })}
+                  disabled={!isEditing}
+                  className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                />
+                <Label htmlFor={`${key}-enabled`} className="text-sm">
+                  {restriction.enabled ? 'Enabled' : 'Disabled'}
+                </Label>
+              </div>
+            </div>
+
+            {restriction.enabled && (
+              <>
+                {/* Pause Until */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Pause Until (Temporary)
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="datetime-local"
+                      value={restriction.pauseUntil ? new Date(restriction.pauseUntil).toISOString().slice(0, 16) : ''}
+                      onChange={(e) => {
+                        const dateValue = e.target.value;
+                        if (dateValue) {
+                          const isoString = new Date(dateValue).toISOString();
+                          handleChange(key, { ...restriction, pauseUntil: isoString });
+                        } else {
+                          handleChange(key, { ...restriction, pauseUntil: null });
+                        }
+                      }}
+                      disabled={!isEditing}
+                      className="flex-1"
+                    />
+                    {restriction.pauseUntil && isEditing && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleChange(key, { ...restriction, pauseUntil: null })}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Temporarily pause deliveries until a specific date/time. Leave empty for no pause.
+                  </p>
+                  {restriction.pauseUntil && (
+                    <p className="text-xs text-blue-600">
+                      Paused until: {new Date(restriction.pauseUntil).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+
+                {/* Daily Start Time */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Daily Start Time
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="time"
+                      value={restriction.dailyStart || ''}
+                      onChange={(e) => handleChange(key, { ...restriction, dailyStart: e.target.value || null })}
+                      disabled={!isEditing}
+                      className="flex-1"
+                    />
+                    {restriction.dailyStart && isEditing && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleChange(key, { ...restriction, dailyStart: null })}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Start accepting orders from this time each day. Leave empty for no restriction.
+                  </p>
+                </div>
+
+                {/* Daily Cutoff Time */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Daily Cutoff Time
+                  </Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="time"
+                      value={restriction.dailyCutoff || ''}
+                      onChange={(e) => handleChange(key, { ...restriction, dailyCutoff: e.target.value || null })}
+                      disabled={!isEditing}
+                      className="flex-1"
+                    />
+                    {restriction.dailyCutoff && isEditing && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleChange(key, { ...restriction, dailyCutoff: null })}
+                      >
+                        Clear
+                      </Button>
+                    )}
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Stop accepting orders after this time each day. Leave empty for no restriction.
+                  </p>
+                </div>
+
+                {/* Quick Actions */}
+                {isEditing && (
+                  <div className="pt-2 border-t flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const now = new Date();
+                        const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+                        handleChange(key, { ...restriction, pauseUntil: twoHoursLater.toISOString() });
+                      }}
+                      className="text-xs"
+                    >
+                      Pause 2 Hours
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const now = new Date();
+                        const oneDayLater = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+                        handleChange(key, { ...restriction, pauseUntil: oneDayLater.toISOString() });
+                      }}
+                      className="text-xs"
+                    >
+                      Pause 24 Hours
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleChange(key, { enabled: true, pauseUntil: null, dailyCutoff: null, dailyStart: null })}
+                      className="text-xs"
+                    >
+                      Clear All
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        );
+
       default:
         return (
           <Input
@@ -458,6 +650,93 @@ const SettingsPage = () => {
           </div>
         </div>
       ))}
+
+      {/* Delivery Restrictions Section - Show even if not in config */}
+      {(() => {
+        const deliveryRestrictionKeys = [
+          'instantDeliveryRestrictions',
+          'sameDayDeliveryRestrictions',
+          'nextDayDeliveryRestrictions'
+        ];
+        
+        const deliveryRestrictions = deliveryRestrictionKeys
+          .map(key => {
+            const setting = settingsData.settings.find(s => 
+              s.key.toLowerCase() === key.toLowerCase()
+            );
+            // Check if it's already shown in a config category
+            const inConfig = Object.entries(settingsData.config || {}).some(([category, categoryData]) =>
+              Object.keys(categoryData.settings || {}).some(k => k.toLowerCase() === key.toLowerCase())
+            );
+            
+            if (!setting && !inConfig) {
+              // Create a default setting if it doesn't exist
+              return {
+                key,
+                value: { enabled: true, pauseUntil: null, dailyCutoff: null, dailyStart: null },
+                category: 'deliveryRestrictions',
+                isPublic: true,
+                description: `Time-based restrictions for ${key.replace('Restrictions', '').replace(/([A-Z])/g, ' $1').trim()} deliveries`
+              };
+            }
+            
+            return setting && !inConfig ? { ...setting, category: 'deliveryRestrictions' } : null;
+          })
+          .filter(Boolean);
+        
+        if (deliveryRestrictions.length === 0) return null;
+        
+        return (
+          <div className="bg-white rounded-lg shadow p-6">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-semibold">Delivery Restrictions</h2>
+              <div>
+                {isEditing ? (
+                  <Button 
+                    onClick={handleSectionSave}
+                    disabled={loading}
+                    className="ml-2"
+                  >
+                    <Save className="h-4 w-4 mr-2" />
+                    Save Changes
+                  </Button>
+                ) : (
+                  <Button 
+                    onClick={() => handleSectionEdit('deliveryRestrictions')}
+                    disabled={loading}
+                    variant="outline"
+                  >
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Section
+                  </Button>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-6">
+              {deliveryRestrictions.map((setting) => {
+                const deliveryType = setting.key.includes('instant') ? 'Instant' : 
+                                    setting.key.includes('sameDay') ? 'Same Day' : 'Next Day';
+                
+                return (
+                  <div key={setting.key} className="space-y-2">
+                    <div className="flex justify-between items-start">
+                      <Label className="font-medium text-lg">
+                        {deliveryType} Delivery Restrictions
+                        {setting.description && (
+                          <span className="block text-sm text-gray-500 font-normal mt-1">
+                            {setting.description}
+                          </span>
+                        )}
+                      </Label>
+                    </div>
+                    {renderSettingInput('deliveryRestrictions', setting.key)}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {successMessage && (
         <div className="fixed bottom-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
