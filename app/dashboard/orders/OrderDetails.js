@@ -9,7 +9,7 @@ const OrderDetails = ({ order }) => {
     if (!order.senderName) {
       return {
         name: order.user?.name || 'Unknown User',
-        phone: order.user?.phoneNumber || order.user?.email,
+        phone: order.phoneNumber || order.user?.phoneNumber || order.user?.email,
         isGuest: false
       };
     }
@@ -86,6 +86,12 @@ const OrderDetails = ({ order }) => {
               <span className="text-gray-600">Created At:</span>
               <span className="font-medium">{formatDate(order.orderDate)}</span>
             </p>
+            <p className="flex justify-between">
+              <span className="text-gray-600">Amount Paid:</span>
+              <span className="font-medium text-green-600">
+                {order.currency || 'NGN'} {order.amount?.toLocaleString() || '0.00'}
+              </span>
+            </p>
           </div>
         </div>
 
@@ -103,9 +109,15 @@ const OrderDetails = ({ order }) => {
               <span className="font-medium">{senderInfo.name}</span>
             </p>
             <p className="flex justify-between">
-              <span className="text-gray-600">Contact:</span>
-              <span className="font-medium">{senderInfo.phone}</span>
+              <span className="text-gray-600">Phone Number:</span>
+              <a 
+                href={`tel:${senderInfo.phone}`}
+                className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+              >
+                {senderInfo.phone}
+              </a>
             </p>
+            
             <p className="flex flex-col">
               <span className="text-gray-600">Pickup Address:</span>
               <span className="font-medium mt-1">{order.pickupAddress}</span>
