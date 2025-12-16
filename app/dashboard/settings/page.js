@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { Edit, Save, Info, Clock, Calendar } from 'lucide-react';
+import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
+import { Edit, Save, Info, Clock, Calendar, HelpCircle } from 'lucide-react';
 import api from '@/lib/api';
 
 /* eslint-disable react-hooks/exhaustive-deps */
@@ -249,14 +250,17 @@ const SettingsPage = () => {
     const config = getSettingConfig(category, key);
     const value = getSettingValue(key);
 
-    console.log(`Rendering input for ${key}:`, { config, value }); // Debug log
+    console.log(`Rendering input for ${key}:`, { config, value, category }); // Debug log
 
-    // Check if this is a delivery restriction by key name (fallback if not in config)
+    // Check if this is a delivery restriction by key name (prioritize this over config type)
     const isDeliveryRestriction = key.toLowerCase().includes('deliveryrestrictions') || 
                                   key.toLowerCase().includes('deliveryrestriction');
     
-    // Use config type if available, otherwise infer from key name
-    const inputType = config.type || (isDeliveryRestriction ? 'deliveryRestriction' : 'string');
+    // For delivery restrictions, always use the custom renderer regardless of config type
+    // Otherwise use config type if available, or infer from key name
+    const inputType = isDeliveryRestriction ? 'deliveryRestriction' : (config.type || 'string');
+
+    console.log(`Input type for ${key}:`, inputType, 'isDeliveryRestriction:', isDeliveryRestriction, 'config.type:', config.type);
 
     switch (inputType) {
       case 'number':
@@ -449,9 +453,6 @@ const SettingsPage = () => {
                       </Button>
                     )}
                   </div>
-                  <p className="text-xs text-gray-500">
-                    Temporarily pause deliveries until a specific date/time. Leave empty for no pause.
-                  </p>
                   {restriction.pauseUntil && (
                     <p className="text-xs text-blue-600">
                       Paused until: {new Date(restriction.pauseUntil).toLocaleString()}
@@ -560,9 +561,172 @@ const SettingsPage = () => {
         );
 
       default:
+        // If value is an object and it looks like a delivery restriction, render it as such
+        if (isDeliveryRestriction && typeof value === 'object' && value !== null) {
+          // Fallback: render delivery restriction UI even if type wasn't detected
+          const restriction = value || { enabled: true, pauseUntil: null, dailyCutoff: null, dailyStart: null };
+          const deliveryType = key.includes('instant') ? 'Instant' : key.includes('sameDay') ? 'Same Day' : 'Next Day';
+          
+          return (
+            <div className="space-y-4 p-4 border rounded-lg bg-gray-50">
+              {/* Enabled Toggle */}
+              <div className="flex items-center justify-between">
+                <Label className="font-medium">Enable {deliveryType} Deliveries</Label>
+                <div className="flex items-center space-x-2">
+                  <input
+                    type="checkbox"
+                    id={`${key}-enabled`}
+                    checked={restriction.enabled ?? true}
+                    onChange={(e) => handleChange(key, { ...restriction, enabled: e.target.checked })}
+                    disabled={!isEditing}
+                    className="h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+                  />
+                  <Label htmlFor={`${key}-enabled`} className="text-sm">
+                    {restriction.enabled ? 'Enabled' : 'Disabled'}
+                  </Label>
+                </div>
+              </div>
+
+              {restriction.enabled && (
+                <>
+                  {/* Pause Until */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Calendar className="h-4 w-4" />
+                      Pause Until (Temporary)
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="datetime-local"
+                        value={restriction.pauseUntil ? new Date(restriction.pauseUntil).toISOString().slice(0, 16) : ''}
+                        onChange={(e) => {
+                          const dateValue = e.target.value;
+                          if (dateValue) {
+                            const isoString = new Date(dateValue).toISOString();
+                            handleChange(key, { ...restriction, pauseUntil: isoString });
+                          } else {
+                            handleChange(key, { ...restriction, pauseUntil: null });
+                          }
+                        }}
+                        disabled={!isEditing}
+                        className="flex-1"
+                      />
+                      {restriction.pauseUntil && isEditing && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleChange(key, { ...restriction, pauseUntil: null })}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                    {restriction.pauseUntil && (
+                      <p className="text-xs text-blue-600">
+                        Paused until: {new Date(restriction.pauseUntil).toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Daily Start Time */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Daily Start Time
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="time"
+                        value={restriction.dailyStart || ''}
+                        onChange={(e) => handleChange(key, { ...restriction, dailyStart: e.target.value || null })}
+                        disabled={!isEditing}
+                        className="flex-1"
+                      />
+                      {restriction.dailyStart && isEditing && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleChange(key, { ...restriction, dailyStart: null })}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Daily Cutoff Time */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium flex items-center gap-2">
+                      <Clock className="h-4 w-4" />
+                      Daily Cutoff Time
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        type="time"
+                        value={restriction.dailyCutoff || ''}
+                        onChange={(e) => handleChange(key, { ...restriction, dailyCutoff: e.target.value || null })}
+                        disabled={!isEditing}
+                        className="flex-1"
+                      />
+                      {restriction.dailyCutoff && isEditing && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleChange(key, { ...restriction, dailyCutoff: null })}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Quick Actions */}
+                  {isEditing && (
+                    <div className="pt-2 border-t flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const now = new Date();
+                          const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+                          handleChange(key, { ...restriction, pauseUntil: twoHoursLater.toISOString() });
+                        }}
+                        className="text-xs"
+                      >
+                        Pause 2 Hours
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const now = new Date();
+                          const oneDayLater = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+                          handleChange(key, { ...restriction, pauseUntil: oneDayLater.toISOString() });
+                        }}
+                        className="text-xs"
+                      >
+                        Pause 24 Hours
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleChange(key, { enabled: true, pauseUntil: null, dailyCutoff: null, dailyStart: null })}
+                        className="text-xs"
+                      >
+                        Clear All
+                      </Button>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        }
+        
+        // Regular string input
         return (
           <Input
-            value={value ?? ''}
+            value={typeof value === 'object' ? JSON.stringify(value, null, 2) : (value ?? '').toString()}
             onChange={(e) => handleChange(key, e.target.value)}
             disabled={!isEditing}
           />
@@ -634,14 +798,27 @@ const SettingsPage = () => {
               return (
                 <div key={key} className="space-y-2">
                   <div className="flex justify-between items-start">
-                    <Label className="font-medium">
-                      {setting.label}
+                    <div className="flex items-center gap-2">
+                      <Label className="font-medium">
+                        {setting.label}
+                      </Label>
                       {setting.description && (
-                        <span className="block text-sm text-gray-500">
-                          {setting.description}
-                        </span>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              className="text-gray-400 hover:text-gray-600 transition-colors"
+                              aria-label="Show description"
+                            >
+                              <HelpCircle className="h-4 w-4" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 p-3 text-sm">
+                            <p className="text-gray-700">{setting.description}</p>
+                          </PopoverContent>
+                        </Popover>
                       )}
-                    </Label>
+                    </div>
                   </div>
                   {renderSettingInput(category, key)}
                 </div>
@@ -720,14 +897,27 @@ const SettingsPage = () => {
                 return (
                   <div key={setting.key} className="space-y-2">
                     <div className="flex justify-between items-start">
-                      <Label className="font-medium text-lg">
-                        {deliveryType} Delivery Restrictions
+                      <div className="flex items-center gap-2">
+                        <Label className="font-medium text-lg">
+                          {deliveryType} Delivery Restrictions
+                        </Label>
                         {setting.description && (
-                          <span className="block text-sm text-gray-500 font-normal mt-1">
-                            {setting.description}
-                          </span>
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                                aria-label="Show description"
+                              >
+                                <HelpCircle className="h-4 w-4" />
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent className="w-80 p-3 text-sm">
+                              <p className="text-gray-700">{setting.description}</p>
+                            </PopoverContent>
+                          </Popover>
                         )}
-                      </Label>
+                      </div>
                     </div>
                     {renderSettingInput('deliveryRestrictions', setting.key)}
                   </div>
