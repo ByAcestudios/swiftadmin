@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { format } from 'date-fns';
-import { ArrowLeft, Search, MapPin, Package, Star, Clock, Navigation } from 'lucide-react';
+import { ArrowLeft, Search, MapPin, Package, Star, Clock, Navigation, ExternalLink } from 'lucide-react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -60,6 +60,13 @@ export default function RiderHistoryPage({ params }) {
       setError('Failed to load rider history');
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const openInGoogleMaps = (lat, lng) => {
+    if (lat && lng) {
+      const url = `https://www.google.com/maps?q=${lat},${lng}`;
+      window.open(url, '_blank');
     }
   };
 
@@ -178,16 +185,47 @@ export default function RiderHistoryPage({ params }) {
               <div className="bg-gray-50 p-4 rounded-lg">
                 <div className="flex items-center">
                   <Navigation className="h-5 w-5 text-gray-400 mr-2" />
-                  <div>
+                  <div className="flex-1">
                     <div className="text-sm text-gray-500">Current Location</div>
                     <div className="text-sm font-medium">
-                      {riderData.rider.details.currentLocation || 'Not Available'}
+                      {riderData.rider.details.currentLocation?.address || 
+                       (typeof riderData.rider.details.currentLocation === 'string' 
+                        ? riderData.rider.details.currentLocation 
+                        : 'Not Available')}
                     </div>
-                    {riderData.rider.details.currentLat && riderData.rider.details.currentLong && (
-                      <div className="text-xs text-gray-500">
-                        {riderData.rider.details.currentLat.toFixed(6)}, {riderData.rider.details.currentLong.toFixed(6)}
+                    {(riderData.rider.details.currentLocation?.latitude && riderData.rider.details.currentLocation?.longitude) ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-500">
+                          {riderData.rider.details.currentLocation.latitude.toFixed(6)}, {riderData.rider.details.currentLocation.longitude.toFixed(6)}
+                        </span>
+                        <button
+                          onClick={() => openInGoogleMaps(
+                            riderData.rider.details.currentLocation.latitude,
+                            riderData.rider.details.currentLocation.longitude
+                          )}
+                          className="text-blue-600 hover:text-blue-800 transition-colors"
+                          title="Open in Google Maps"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </button>
                       </div>
-                    )}
+                    ) : (riderData.rider.details.currentLat && riderData.rider.details.currentLong) ? (
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-gray-500">
+                          {riderData.rider.details.currentLat.toFixed(6)}, {riderData.rider.details.currentLong.toFixed(6)}
+                        </span>
+                        <button
+                          onClick={() => openInGoogleMaps(
+                            riderData.rider.details.currentLat,
+                            riderData.rider.details.currentLong
+                          )}
+                          className="text-blue-600 hover:text-blue-800 transition-colors"
+                          title="Open in Google Maps"
+                        >
+                          <ExternalLink className="h-4 w-4" />
+                        </button>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </div>

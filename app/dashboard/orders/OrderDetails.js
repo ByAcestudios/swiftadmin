@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { formatDate } from "@/utils/utils";
 import { getStatusColor } from "@/utils/settings";
 import { formatSettingsForSelect } from "@/utils/settings";
-import { Edit, AlertTriangle } from 'lucide-react';
+import { Edit, AlertTriangle, Clock } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import api from '@/lib/api';
 
@@ -17,7 +17,28 @@ const OrderDetails = ({ order, onUpdate, onOrderUpdate }) => {
   const [newStatus, setNewStatus] = useState(order.orderStatus);
   const [reason, setReason] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [orderTimeline, setOrderTimeline] = useState(null);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    if (order.id) {
+      fetchOrderTimeline();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order.id]);
+
+  const fetchOrderTimeline = async () => {
+    try {
+      setLoadingTimeline(true);
+      const response = await api.get(`/api/orders/${order.id}/timeline`);
+      setOrderTimeline(response.data);
+    } catch (error) {
+      console.error('Error fetching order timeline:', error);
+    } finally {
+      setLoadingTimeline(false);
+    }
+  };
   const getSenderInfo = () => {
     // If senderName is null, it's a registered user order
     if (!order.senderName) {
@@ -37,7 +58,7 @@ const OrderDetails = ({ order, onUpdate, onOrderUpdate }) => {
 
   const formatStatus = (status) => {
     const statusMap = {
-      'in_transit': 'In Transit',
+      'in_transit': hasBeenPickedUp() ? 'In Transit (to dropoff)' : 'In Transit (to pickup)',
       'delivered': 'Delivered',
       'pending': 'Pending',
       'assigned': 'Assigned',
@@ -47,37 +68,40 @@ const OrderDetails = ({ order, onUpdate, onOrderUpdate }) => {
     return statusMap[status] || status;
   };
 
-  // Get available next statuses based on current status
-  const getAvailableStatuses = (currentStatus) => {
-    const statusFlow = {
-      'pending': ['assigned', 'cancelled'],
-      'assigned': ['in_transit', 'cancelled'],
-      'in_transit': ['picked_up', 'cancelled'],
-      'picked_up': ['in_transit', 'delivered', 'cancelled'],
-      'delivered': [], // Final status
-      'cancelled': [] // Final status
-    };
-    
-    // Allow all statuses for admin override, but show recommended ones first
-    const allStatuses = ['pending', 'assigned', 'in_transit', 'picked_up', 'delivered', 'cancelled'];
-    const recommended = statusFlow[currentStatus] || [];
-    const others = allStatuses.filter(s => !recommended.includes(s) && s !== currentStatus);
-    
-    return [...recommended, ...others];
+  // Determine if order has been picked up (to distinguish in_transit phases)
+  const hasBeenPickedUp = () => {
+    if (!orderTimeline?.timeline) {
+      // Fallback: check if current status is picked_up or delivered
+      return order.orderStatus === 'picked_up' || order.orderStatus === 'delivered';
+    }
+    return orderTimeline.timeline.some(
+      activity => activity.newStatus?.value === 'picked_up' || activity.newStatus === 'picked_up'
+    );
   };
 
-  // Check if status transition is recommended (first few in the list)
-  const isRecommendedStatus = (status) => {
+  // Get valid next statuses based on current status and timeline (no skipping allowed)
+  const getAvailableStatuses = (currentStatus) => {
+    const pickedUp = hasBeenPickedUp();
+    
+    // Define valid transitions based on status flow - NO SKIPPING ALLOWED
     const statusFlow = {
       'pending': ['assigned', 'cancelled'],
       'assigned': ['in_transit', 'cancelled'],
-      'in_transit': ['picked_up', 'cancelled'],
-      'picked_up': ['in_transit', 'delivered', 'cancelled'],
-      'delivered': [],
-      'cancelled': []
+      'in_transit': pickedUp 
+        ? ['delivered', 'cancelled'] // In transit to dropoff (picked_up exists in timeline)
+        : ['picked_up', 'cancelled'], // In transit to pickup (picked_up doesn't exist in timeline)
+      'picked_up': ['in_transit', 'cancelled'],
+      'delivered': [], // Final status - no transitions
+      'cancelled': []  // Final status - no transitions
     };
-    const recommended = statusFlow[order.orderStatus] || [];
-    return recommended.includes(status);
+    
+    return statusFlow[currentStatus] || [];
+  };
+
+  // Check if status transition is valid (all shown statuses are valid)
+  const isRecommendedStatus = (status) => {
+    // All statuses shown are valid, so they're all "recommended"
+    return getAvailableStatuses(order.orderStatus).includes(status);
   };
 
   const handleStatusUpdate = async () => {
@@ -207,11 +231,24 @@ const OrderDetails = ({ order, onUpdate, onOrderUpdate }) => {
                             <SelectValue placeholder="Select new status" />
                           </SelectTrigger>
                           <SelectContent>
-                            {getAvailableStatuses(order.orderStatus).map((status) => (
-                              <SelectItem key={status} value={status}>
-                                {formatStatus(status)}
+                            {getAvailableStatuses(order.orderStatus).length > 0 ? (
+                              getAvailableStatuses(order.orderStatus).map((status) => {
+                                // Format status label with phase for in_transit
+                                let label = formatStatus(status);
+                                if (status === 'in_transit') {
+                                  label = hasBeenPickedUp() ? 'In Transit (to dropoff)' : 'In Transit (to pickup)';
+                                }
+                                return (
+                                  <SelectItem key={status} value={status}>
+                                    {label}
+                                  </SelectItem>
+                                );
+                              })
+                            ) : (
+                              <SelectItem value={order.orderStatus} disabled>
+                                {formatStatus(order.orderStatus)} (Final Status)
                               </SelectItem>
-                            ))}
+                            )}
                           </SelectContent>
                         </Select>
                         {newStatus !== order.orderStatus && (
@@ -367,6 +404,78 @@ const OrderDetails = ({ order, onUpdate, onOrderUpdate }) => {
           </div>
         ) : (
           <p className="text-gray-500">No drop-offs available for this order.</p>
+        )}
+      </div>
+
+      {/* Order Timeline */}
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-100">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold text-gray-800">Order Timeline</h3>
+          {loadingTimeline && (
+            <span className="text-sm text-gray-500">Loading...</span>
+          )}
+        </div>
+        {orderTimeline?.timeline && orderTimeline.timeline.length > 0 ? (
+          <div className="space-y-4">
+            {orderTimeline.timeline.map((activity, index) => (
+              <div key={activity.id} className="flex gap-4">
+                <div className="flex flex-col items-center">
+                  <div className={`w-3 h-3 rounded-full ${
+                    index === 0 ? 'bg-blue-500' : 'bg-gray-300'
+                  }`} />
+                  {index < orderTimeline.timeline.length - 1 && (
+                    <div className="w-0.5 h-full bg-gray-200 mt-1" />
+                  )}
+                </div>
+                <div className="flex-1 pb-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <p className="text-sm font-medium text-gray-900">
+                        {activity.message}
+                      </p>
+                      {activity.oldStatus && activity.newStatus && (
+                        <div className="flex items-center gap-2 mt-1">
+                          <Badge className="bg-gray-200 text-gray-700 text-xs">
+                            {activity.oldStatus.label || activity.oldStatus}
+                          </Badge>
+                          <span className="text-gray-400">→</span>
+                          <Badge className={`${getStatusColor(activity.newStatus.value || activity.newStatus)} text-white text-xs`}>
+                            {activity.newStatus.label || activity.newStatus}
+                          </Badge>
+                        </div>
+                      )}
+                      {activity.rider && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Rider: {activity.rider.name} ({activity.rider.phoneNumber})
+                        </p>
+                      )}
+                      <p className="text-xs text-gray-400 mt-1">
+                        {formatDate(activity.timestamp)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : !loadingTimeline ? (
+          <p className="text-gray-500">No timeline activities available.</p>
+        ) : null}
+        {orderTimeline?.estimatedETA && (
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="flex items-center gap-2 mb-2">
+              <Clock className="h-4 w-4 text-blue-600" />
+              <span className="text-sm font-medium text-blue-900">Estimated Delivery</span>
+            </div>
+            <p className="text-sm text-blue-700">
+              {orderTimeline.estimatedETA.estimatedMinutes} minutes
+              {orderTimeline.estimatedETA.estimatedDeliveryTime && (
+                <span className="ml-2 text-blue-600">
+                  ({formatDate(orderTimeline.estimatedETA.estimatedDeliveryTime)})
+                </span>
+              )}
+            </p>
+          </div>
         )}
       </div>
 

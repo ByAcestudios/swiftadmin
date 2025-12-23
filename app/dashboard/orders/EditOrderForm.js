@@ -7,13 +7,15 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Trash2, Plus } from 'lucide-react';
-import api from '@/utils/axiosIntercept';
+import { getStatusColor } from "@/utils/settings";
+import api from '@/lib/api';
 
 import Image from 'next/image';
 
 const EditOrderForm = ({ order, onSubmit, onCancel }) => {
   const [formData, setFormData] = useState({
     ...order,
+    orderStatus: order.orderStatus || 'pending', // Ensure orderStatus is set
     ratePerHour: Number(order.ratePerHour) || 0,
     rateSameDayDelivery: Number(order.rateSameDayDelivery) || 0,
     rateNextDayDelivery: Number(order.rateNextDayDelivery) || 0,
@@ -26,6 +28,8 @@ const EditOrderForm = ({ order, onSubmit, onCancel }) => {
 
   const [assignedRider, setAssignedRider] = useState(null);
   const [orderUser, setOrderUser] = useState(null);
+  const [orderTimeline, setOrderTimeline] = useState(null);
+  const [loadingTimeline, setLoadingTimeline] = useState(false);
 
   useEffect(() => {
     if (order.riderId) {
@@ -34,7 +38,28 @@ const EditOrderForm = ({ order, onSubmit, onCancel }) => {
     if (order.userId) {
       fetchUserDetails();
     }
-  }, [order.riderId, order.userId]);
+    if (order.id) {
+      fetchOrderTimeline();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
+
+  // Update formData when timeline loads to get current status from timeline
+  useEffect(() => {
+    if (orderTimeline?.order?.currentStatus?.value) {
+      const timelineStatus = orderTimeline.order.currentStatus.value;
+      setFormData(prev => {
+        // Only update if different to avoid unnecessary re-renders
+        if (prev.orderStatus === timelineStatus) {
+          return prev;
+        }
+        return {
+          ...prev,
+          orderStatus: timelineStatus
+        };
+      });
+    }
+  }, [orderTimeline]);
 
   const fetchRiderDetails = async () => {
     try {
@@ -52,6 +77,80 @@ const EditOrderForm = ({ order, onSubmit, onCancel }) => {
     } catch (error) {
       console.error('Error fetching user details:', error);
     }
+  };
+
+  const fetchOrderTimeline = async () => {
+    try {
+      setLoadingTimeline(true);
+      const response = await api.get(`/api/orders/${order.id}/timeline`);
+      setOrderTimeline(response.data);
+    } catch (error) {
+      console.error('Error fetching order timeline:', error);
+      // Don't show error, just continue without timeline
+    } finally {
+      setLoadingTimeline(false);
+    }
+  };
+
+  // Determine if order has been picked up (to distinguish in_transit phases)
+  const hasBeenPickedUp = () => {
+    if (!orderTimeline?.timeline) {
+      // Fallback: check if current status is picked_up or delivered
+      return formData.orderStatus === 'picked_up' || formData.orderStatus === 'delivered';
+    }
+    return orderTimeline.timeline.some(
+      activity => activity.newStatus?.value === 'picked_up' || activity.newStatus === 'picked_up'
+    );
+  };
+
+  // Get status label with phase indicator for in_transit
+  const getStatusLabel = (status) => {
+    const statusLabels = {
+      'pending': 'Pending',
+      'assigned': 'Assigned',
+      'in_transit': hasBeenPickedUp() ? 'In Transit (to dropoff)' : 'In Transit (to pickup)',
+      'picked_up': 'Picked Up',
+      'delivered': 'Delivered',
+      'cancelled': 'Cancelled'
+    };
+    return statusLabels[status] || status;
+  };
+
+  // Get valid next statuses based on current status and timeline (no skipping allowed)
+  const getValidNextStatuses = () => {
+    const currentStatus = formData.orderStatus || order.orderStatus;
+    const pickedUp = hasBeenPickedUp();
+
+    // Define valid transitions based on status flow
+    const statusFlow = {
+      'pending': [
+        { value: 'assigned', label: 'Assigned' },
+        { value: 'cancelled', label: 'Cancelled' }
+      ],
+      'assigned': [
+        { value: 'in_transit', label: 'In Transit (to pickup)' },
+        { value: 'cancelled', label: 'Cancelled' }
+      ],
+      'in_transit': pickedUp 
+        ? [
+            // In transit to dropoff (picked_up exists in timeline)
+            { value: 'delivered', label: 'Delivered' },
+            { value: 'cancelled', label: 'Cancelled' }
+          ]
+        : [
+            // In transit to pickup (picked_up doesn't exist in timeline)
+            { value: 'picked_up', label: 'Picked Up' },
+            { value: 'cancelled', label: 'Cancelled' }
+          ],
+      'picked_up': [
+        { value: 'in_transit', label: 'In Transit (to dropoff)' },
+        { value: 'cancelled', label: 'Cancelled' }
+      ],
+      'delivered': [], // Final status - no transitions
+      'cancelled': []  // Final status - no transitions
+    };
+
+    return statusFlow[currentStatus] || [];
   };
 
   const getSenderInfo = () => {
@@ -146,17 +245,67 @@ const EditOrderForm = ({ order, onSubmit, onCancel }) => {
             </div>
             <div>
               <Label htmlFor="orderStatus">Status</Label>
-              <Select name="orderStatus" value={formData.orderStatus} onValueChange={(value) => handleChange({ target: { name: 'orderStatus', value } })}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="in_transit">In Transit</SelectItem>
-                  <SelectItem value="delivered">Delivered</SelectItem>
-                  <SelectItem value="cancelled">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-gray-600">Current:</span>
+                  <Badge className={`${getStatusColor(formData.orderStatus || order.orderStatus)} text-white text-xs`}>
+                    {getStatusLabel(formData.orderStatus || order.orderStatus)}
+                  </Badge>
+                </div>
+                <Select 
+                  name="orderStatus" 
+                  value={formData.orderStatus || order.orderStatus || ''} 
+                  onValueChange={(value) => {
+                    handleChange({ target: { name: 'orderStatus', value } });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select new status">
+                      {(() => {
+                        const currentStatus = formData.orderStatus || order.orderStatus;
+                        if (!currentStatus) return 'Select status';
+                        // Try to find in valid next statuses first
+                        const validStatuses = getValidNextStatuses();
+                        const found = validStatuses.find(s => s.value === currentStatus);
+                        if (found) return found.label;
+                        // Otherwise show the status label
+                        return getStatusLabel(currentStatus);
+                      })()}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    {getValidNextStatuses().length > 0 ? (
+                      <>
+                        {/* Show current status as reference (disabled) */}
+                        <SelectItem 
+                          value={formData.orderStatus || order.orderStatus} 
+                          disabled
+                          className="opacity-50"
+                        >
+                          Current: {getStatusLabel(formData.orderStatus || order.orderStatus)}
+                        </SelectItem>
+                        {/* Show valid next statuses */}
+                        {getValidNextStatuses().map((status) => (
+                          <SelectItem key={status.value} value={status.value}>
+                            {status.label}
+                          </SelectItem>
+                        ))}
+                      </>
+                    ) : (
+                      <SelectItem value={formData.orderStatus || order.orderStatus} disabled>
+                        {getStatusLabel(formData.orderStatus || order.orderStatus)} (Final Status)
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+                {formData.orderStatus === 'in_transit' && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {hasBeenPickedUp() 
+                      ? 'Phase: Heading to dropoff location' 
+                      : 'Phase: Heading to pickup location'}
+                  </p>
+                )}
+              </div>
             </div>
           </div>
         </div>
