@@ -330,9 +330,11 @@ const OrdersPage = () => {
               </DialogHeader>
               <OrderDetails 
                 order={selectedOrder} 
-                onUpdate={() => {
+                onUpdate={(updatedOrder) => {
+                  if (updatedOrder) {
+                    setSelectedOrder(updatedOrder);
+                  }
                   refreshOrders();
-                  setSelectedOrder(null);
                 }}
                 onClose={() => setSelectedOrder(null)}
               />

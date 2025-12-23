@@ -70,14 +70,22 @@ export const formatSettingsForSelect = (items) => {
 // "electronics" -> "Electronics"
 
 export const getStatusColor = (status) => {
+  // Normalize status (handle both hyphen and underscore formats)
+  const normalizedStatus = status?.toLowerCase().replace(/-/g, '_');
+  
   const statusMap = {
+    'in_transit': 'bg-blue-500',
     'in-transit': 'bg-blue-500',
     'completed': 'bg-green-500',
+    'delivered': 'bg-green-500',
     'pending': 'bg-yellow-500',
+    'assigned': 'bg-blue-500',
+    'picked_up': 'bg-green-500',
+    'picked-up': 'bg-green-500',
     'cancelled': 'bg-red-500',
     'rejected': 'bg-red-500',
     'expired': 'bg-gray-500',
     'accepted': 'bg-emerald-500'
   };
-  return statusMap[status] || 'bg-gray-500';
+  return statusMap[normalizedStatus] || statusMap[status] || 'bg-gray-500';
 }; 

@@ -1,9 +1,23 @@
+import { useState } from 'react';
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { formatDate } from "@/utils/utils";
 import { getStatusColor } from "@/utils/settings";
 import { formatSettingsForSelect } from "@/utils/settings";
+import { Edit, AlertTriangle } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
+import api from '@/lib/api';
 
-const OrderDetails = ({ order }) => {
+const OrderDetails = ({ order, onUpdate, onOrderUpdate }) => {
+  const [isStatusDialogOpen, setIsStatusDialogOpen] = useState(false);
+  const [newStatus, setNewStatus] = useState(order.orderStatus);
+  const [reason, setReason] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const { toast } = useToast();
   const getSenderInfo = () => {
     // If senderName is null, it's a registered user order
     if (!order.senderName) {
@@ -26,9 +40,90 @@ const OrderDetails = ({ order }) => {
       'in_transit': 'In Transit',
       'delivered': 'Delivered',
       'pending': 'Pending',
+      'assigned': 'Assigned',
+      'picked_up': 'Picked Up',
       'cancelled': 'Cancelled'
     };
     return statusMap[status] || status;
+  };
+
+  // Get available next statuses based on current status
+  const getAvailableStatuses = (currentStatus) => {
+    const statusFlow = {
+      'pending': ['assigned', 'cancelled'],
+      'assigned': ['in_transit', 'cancelled'],
+      'in_transit': ['picked_up', 'cancelled'],
+      'picked_up': ['in_transit', 'delivered', 'cancelled'],
+      'delivered': [], // Final status
+      'cancelled': [] // Final status
+    };
+    
+    // Allow all statuses for admin override, but show recommended ones first
+    const allStatuses = ['pending', 'assigned', 'in_transit', 'picked_up', 'delivered', 'cancelled'];
+    const recommended = statusFlow[currentStatus] || [];
+    const others = allStatuses.filter(s => !recommended.includes(s) && s !== currentStatus);
+    
+    return [...recommended, ...others];
+  };
+
+  // Check if status transition is recommended (first few in the list)
+  const isRecommendedStatus = (status) => {
+    const statusFlow = {
+      'pending': ['assigned', 'cancelled'],
+      'assigned': ['in_transit', 'cancelled'],
+      'in_transit': ['picked_up', 'cancelled'],
+      'picked_up': ['in_transit', 'delivered', 'cancelled'],
+      'delivered': [],
+      'cancelled': []
+    };
+    const recommended = statusFlow[order.orderStatus] || [];
+    return recommended.includes(status);
+  };
+
+  const handleStatusUpdate = async () => {
+    if (!newStatus || newStatus === order.orderStatus) {
+      setIsStatusDialogOpen(false);
+      return;
+    }
+
+    try {
+      setIsUpdating(true);
+      const payload = {
+        status: newStatus
+      };
+      
+      if (reason.trim()) {
+        payload.reason = reason.trim();
+      }
+
+      const response = await api.put(`/api/orders/${order.id}/status`, payload);
+      
+      toast({
+        title: "Success",
+        description: "Order status updated successfully!",
+      });
+
+      setIsStatusDialogOpen(false);
+      setReason('');
+      
+      // Call the callback to refresh the order
+      const updatedOrder = response.data.order || { ...order, orderStatus: newStatus };
+      if (onOrderUpdate) {
+        onOrderUpdate(updatedOrder);
+      }
+      if (onUpdate) {
+        onUpdate(updatedOrder);
+      }
+    } catch (error) {
+      console.error('Failed to update order status:', error);
+      toast({
+        title: "Error",
+        description: error.response?.data?.message || "Failed to update order status. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   const formatOrderType = (type) => {
@@ -76,12 +171,101 @@ const OrderDetails = ({ order }) => {
               <span className="text-gray-600">Order Type:</span>
               <span className="font-medium">{formatOrderType(order.orderType)}</span>
             </p>
-            <p className="flex justify-between items-center">
+            <div className="flex justify-between items-center">
               <span className="text-gray-600">Status:</span>
-              <Badge className={`${getStatusColor(order.orderStatus)} text-white`}>
-                {formatStatus(order.orderStatus)}
-              </Badge>
-            </p>
+              <div className="flex items-center gap-2">
+                <Badge className={`${getStatusColor(order.orderStatus)} text-white`}>
+                  {formatStatus(order.orderStatus)}
+                </Badge>
+                <Dialog open={isStatusDialogOpen} onOpenChange={setIsStatusDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={() => setNewStatus(order.orderStatus)}
+                    >
+                      <Edit className="h-3 w-3 mr-1" />
+                      Update
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Update Order Status</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Current Status</Label>
+                        <Badge className={`${getStatusColor(order.orderStatus)} text-white`}>
+                          {formatStatus(order.orderStatus)}
+                        </Badge>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="newStatus">New Status</Label>
+                        <Select value={newStatus} onValueChange={setNewStatus}>
+                          <SelectTrigger id="newStatus">
+                            <SelectValue placeholder="Select new status" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {getAvailableStatuses(order.orderStatus).map((status) => (
+                              <SelectItem key={status} value={status}>
+                                {formatStatus(status)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        {newStatus !== order.orderStatus && (
+                          <div className={`flex items-start gap-2 p-2 border rounded text-sm ${
+                            isRecommendedStatus(newStatus) 
+                              ? 'bg-blue-50 border-blue-200 text-blue-800' 
+                              : 'bg-yellow-50 border-yellow-200 text-yellow-800'
+                          }`}>
+                            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                            <span>
+                              {isRecommendedStatus(newStatus)
+                                ? 'This is a recommended status transition following the normal flow.'
+                                : 'You are overriding the normal status flow. Use with caution.'}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="reason">Reason (Optional)</Label>
+                        <Input
+                          id="reason"
+                          placeholder="Enter reason for status change..."
+                          value={reason}
+                          onChange={(e) => setReason(e.target.value)}
+                        />
+                        <p className="text-xs text-gray-500">
+                          Provide a reason for the status change (e.g., "Customer requested cancellation")
+                        </p>
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => {
+                          setIsStatusDialogOpen(false);
+                          setReason('');
+                          setNewStatus(order.orderStatus);
+                        }}
+                        disabled={isUpdating}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleStatusUpdate}
+                        disabled={isUpdating || newStatus === order.orderStatus}
+                        className="bg-[#733E70] hover:bg-[#62275F] text-white"
+                      >
+                        {isUpdating ? 'Updating...' : 'Update Status'}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </div>
             <p className="flex justify-between">
               <span className="text-gray-600">Created At:</span>
               <span className="font-medium">{formatDate(order.orderDate)}</span>
