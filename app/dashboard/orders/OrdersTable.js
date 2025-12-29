@@ -9,7 +9,12 @@ const OrdersTable = ({ orders, onViewDetails, onEditOrder, onDeleteOrder, onAssi
       'in_transit': 'In Transit',
       'delivered': 'Delivered',
       'pending': 'Pending',
-      'cancelled': 'Cancelled'
+      'cancelled': 'Cancelled',
+      'assigned': 'Assigned',
+      'picked_up': 'Picked Up',
+      'accepted': 'Accepted',
+      'rejected': 'Rejected',
+      'expired': 'Expired'
     };
     return statusMap[status] || status;
   };
@@ -28,7 +33,12 @@ const OrdersTable = ({ orders, onViewDetails, onEditOrder, onDeleteOrder, onAssi
       'in_transit': 'bg-blue-500',
       'delivered': 'bg-green-500',
       'pending': 'bg-yellow-500',
-      'cancelled': 'bg-red-500'
+      'cancelled': 'bg-red-500',
+      'assigned': 'bg-indigo-500',
+      'picked_up': 'bg-green-600',
+      'accepted': 'bg-emerald-500',
+      'rejected': 'bg-red-500',
+      'expired': 'bg-gray-500'
     };
     return statusMap[status] || 'bg-gray-500';
   };
@@ -46,12 +56,32 @@ const OrdersTable = ({ orders, onViewDetails, onEditOrder, onDeleteOrder, onAssi
     return order.senderName;
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const truncateAddress = (address, maxLength = 40) => {
+    if (!address) return 'N/A';
+    if (address.length <= maxLength) return address;
+    return address.substring(0, maxLength) + '...';
+  };
+
   return (
     <Table>
       <TableHeader>
         <TableRow>
           <TableHead>Order Number</TableHead>
+          <TableHead>Order Date</TableHead>
           <TableHead>Sender</TableHead>
+          <TableHead>Pickup Address</TableHead>
           <TableHead>Type</TableHead>
           <TableHead>Status</TableHead>
           <TableHead>Rider</TableHead>
@@ -61,16 +91,30 @@ const OrdersTable = ({ orders, onViewDetails, onEditOrder, onDeleteOrder, onAssi
       <TableBody>
         {orders.map((order) => (
           <TableRow key={order.id}>
-            <TableCell>{order.orderNumber}</TableCell>
+            <TableCell className="font-medium">{order.orderNumber}</TableCell>
+            <TableCell className="text-sm text-gray-600">
+              {formatDate(order.orderDate)}
+            </TableCell>
             <TableCell>{getSenderName(order)}</TableCell>
-            <TableCell>{order.orderType}</TableCell>
+            <TableCell className="max-w-xs" title={order.pickupAddress}>
+              {truncateAddress(order.pickupAddress)}
+            </TableCell>
             <TableCell>
-              <Badge className={getStatusColor(order.orderStatus)}>
-                {order.orderStatus}
+              <Badge variant="outline">
+                {formatOrderType(order.orderType)}
               </Badge>
             </TableCell>
             <TableCell>
-              {order.rider ? order.rider.name : 'Not Assigned'}
+              <Badge className={`${getStatusColor(order.orderStatus)} text-white`}>
+                {formatStatus(order.orderStatus)}
+              </Badge>
+            </TableCell>
+            <TableCell>
+              {order.rider ? (
+                <span className="text-sm">{order.rider.name}</span>
+              ) : (
+                <span className="text-sm text-gray-400">Not Assigned</span>
+              )}
             </TableCell>
             <TableCell className="space-x-2">
               <Button 
