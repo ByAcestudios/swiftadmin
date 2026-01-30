@@ -23,7 +23,9 @@ const UsersPage = () => {
     search: '',
     role: 'all',
     status: 'all',
-    isVerified: 'all'
+    isVerified: 'all',
+    dateFrom: null,
+    dateTo: null
   });
   const [shouldFetch, setShouldFetch] = useState(false);
   const isInitialMount = useRef(true);
@@ -42,6 +44,8 @@ const UsersPage = () => {
       if (filters.role && filters.role !== 'all') queryParams.append('role', filters.role);
       if (filters.status && filters.status !== 'all') queryParams.append('status', filters.status);
       if (filters.isVerified && filters.isVerified !== 'all') queryParams.append('isVerified', filters.isVerified);
+      if (filters.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
+      if (filters.dateTo) queryParams.append('dateTo', filters.dateTo);
 
       const queryString = queryParams.toString();
       // console.log('Query string:', queryString);
@@ -76,7 +80,9 @@ const UsersPage = () => {
         prevFilters.search !== newFilters.search ||
         prevFilters.role !== newFilters.role ||
         prevFilters.status !== newFilters.status ||
-        prevFilters.isVerified !== newFilters.isVerified;
+        prevFilters.isVerified !== newFilters.isVerified ||
+        prevFilters.dateFrom !== newFilters.dateFrom ||
+        prevFilters.dateTo !== newFilters.dateTo;
       
       if (!hasChanged) {
         return prevFilters; // Return same object if no change
@@ -101,7 +107,9 @@ const UsersPage = () => {
       prevFilters.search !== filters.search ||
       prevFilters.role !== filters.role ||
       prevFilters.status !== filters.status ||
-      prevFilters.isVerified !== filters.isVerified;
+      prevFilters.isVerified !== filters.isVerified ||
+      prevFilters.dateFrom !== filters.dateFrom ||
+      prevFilters.dateTo !== filters.dateTo;
     
     if (hasChanged) {
       console.log('Filters changed, fetching page 1:', filters);

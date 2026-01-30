@@ -10,17 +10,24 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useDebounce } from '@/hooks/useDebounce';
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 
 const FilterBar = ({ onFilterChange, initialFilters = { 
   search: '', 
   role: 'all',
   status: 'all',
-  isVerified: 'all'
+  isVerified: 'all',
+  dateFrom: null,
+  dateTo: null
 } }) => {
   const [searchTerm, setSearchTerm] = useState(initialFilters.search);
   const [selectedRole, setSelectedRole] = useState(initialFilters.role);
   const [selectedStatus, setSelectedStatus] = useState(initialFilters.status);
   const [selectedVerification, setSelectedVerification] = useState(initialFilters.isVerified);
+  const [dateRange, setDateRange] = useState({
+    from: initialFilters.dateFrom ? new Date(initialFilters.dateFrom) : undefined,
+    to: initialFilters.dateTo ? new Date(initialFilters.dateTo) : undefined,
+  });
   const debouncedSearch = useDebounce(searchTerm, 200);
   
   // Use ref to track previous filters and prevent unnecessary updates
@@ -28,7 +35,9 @@ const FilterBar = ({ onFilterChange, initialFilters = {
     search: debouncedSearch,
     role: selectedRole,
     status: selectedStatus,
-    isVerified: selectedVerification
+    isVerified: selectedVerification,
+    dateFrom: dateRange.from,
+    dateTo: dateRange.to
   });
   const isInitialMount = useRef(true);
 
@@ -37,7 +46,9 @@ const FilterBar = ({ onFilterChange, initialFilters = {
       search: debouncedSearch,
       role: selectedRole,
       status: selectedStatus,
-      isVerified: selectedVerification
+      isVerified: selectedVerification,
+      dateFrom: dateRange.from ? dateRange.from.toISOString().split('T')[0] : null,
+      dateTo: dateRange.to ? dateRange.to.toISOString().split('T')[0] : null
     };
     
     // Skip on initial mount
@@ -53,25 +64,30 @@ const FilterBar = ({ onFilterChange, initialFilters = {
       prevFilters.search !== newFilters.search ||
       prevFilters.role !== newFilters.role ||
       prevFilters.status !== newFilters.status ||
-      prevFilters.isVerified !== newFilters.isVerified;
+      prevFilters.isVerified !== newFilters.isVerified ||
+      prevFilters.dateFrom !== newFilters.dateFrom ||
+      prevFilters.dateTo !== newFilters.dateTo;
     
     if (hasChanged) {
       console.log('FilterBar updating filters with:', newFilters);
       prevFiltersRef.current = newFilters;
       onFilterChange(newFilters);
     }
-  }, [debouncedSearch, selectedRole, selectedStatus, selectedVerification, onFilterChange]);
+  }, [debouncedSearch, selectedRole, selectedStatus, selectedVerification, dateRange, onFilterChange]);
 
   const clearFilters = () => {
     setSearchTerm('');
     setSelectedRole('all');
     setSelectedStatus('all');
     setSelectedVerification('all');
+    setDateRange({ from: undefined, to: undefined });
     onFilterChange({ 
       search: '', 
       role: '', 
       status: '', 
-      isVerified: '' 
+      isVerified: '',
+      dateFrom: null,
+      dateTo: null
     });
   };
 
@@ -131,7 +147,14 @@ const FilterBar = ({ onFilterChange, initialFilters = {
           </SelectContent>
         </Select>
 
-        {(searchTerm || selectedRole !== 'all' || selectedStatus !== 'all' || selectedVerification !== 'all') && (
+        <div className="w-[250px]">
+          <DateRangePicker
+            value={dateRange}
+            onChange={(range) => setDateRange(range || { from: undefined, to: undefined })}
+          />
+        </div>
+
+        {(searchTerm || selectedRole !== 'all' || selectedStatus !== 'all' || selectedVerification !== 'all' || dateRange.from || dateRange.to) && (
           <Button 
             variant="outline" 
             size="icon"

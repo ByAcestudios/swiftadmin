@@ -16,11 +16,19 @@ import {
 export function DateRangePicker({
   className,
   onChange,
+  value,
 }) {
-  const [date, setDate] = React.useState({
+  const [date, setDate] = React.useState(value || {
     from: undefined,
     to: undefined,
   });
+
+  // Update internal state when value prop changes
+  React.useEffect(() => {
+    if (value !== undefined) {
+      setDate(value || { from: undefined, to: undefined });
+    }
+  }, [value]);
 
   const handleSelect = (range) => {
     setDate(range);
