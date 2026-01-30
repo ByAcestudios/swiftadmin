@@ -9,39 +9,14 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
+import Pagination from '../users/Pagination';
 import api from '@/lib/api';
 import SuccessMessage from '@/components/successMessage';
 import CreateRiderForm from './CreateRiderForm';
 import RiderDetailsModal from './RiderDetailsModal';
 import RiderHistoryModal from './RiderHistoryModal';
 
-const Pagination = ({ currentPage, totalPages, onPageChange }) => {
-  return (
-    <div className="flex items-center justify-center space-x-2">
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => onPageChange(currentPage - 1)}
-        disabled={currentPage <= 1}
-      >
-        <ChevronLeft className="h-4 w-4" />
-        Previous
-      </Button>
-      <div className="flex items-center justify-center text-sm text-gray-600">
-        Page {currentPage} of {totalPages}
-      </div>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => onPageChange(currentPage + 1)}
-        disabled={currentPage >= totalPages}
-      >
-        Next
-        <ChevronRight className="h-4 w-4" />
-      </Button>
-    </div>
-  );
-};
 
 const RidersPage = () => {
   const router = useRouter();
@@ -51,10 +26,16 @@ const RidersPage = () => {
     onlineStatus: 'all',
     search: '',
     page: 1,
-    limit: 10
+    limit: 10,
+    dateFrom: null,
+    dateTo: null
   };
 
   const [filters, setFilters] = useState(initialFilters);
+  const [dateRange, setDateRange] = useState({
+    from: undefined,
+    to: undefined,
+  });
   const [ridersData, setRidersData] = useState({ riders: [], metadata: {} });
   const [isCreatingRider, setIsCreatingRider] = useState(false);
   const [selectedRiderId, setSelectedRiderId] = useState(null);
@@ -71,15 +52,19 @@ const RidersPage = () => {
   const fetchRiders = async () => {
     setIsLoading(true);
     try {
-      const response = await api.get('/api/riders', {
-        params: {
-          ...filters,
-          search: filters.search || undefined,
-          status: filters.status || undefined,
-          availability: filters.availability || undefined,
-          onlineStatus: filters.onlineStatus || undefined
-        }
-      });
+      const params = {
+        ...filters,
+        search: filters.search || undefined,
+        status: filters.status || undefined,
+        availability: filters.availability || undefined,
+        onlineStatus: filters.onlineStatus || undefined
+      };
+      
+      // Only include date params if both are set
+      if (filters.dateFrom) params.dateFrom = filters.dateFrom;
+      if (filters.dateTo) params.dateTo = filters.dateTo;
+      
+      const response = await api.get('/api/riders', { params });
       setRidersData(response.data);
     } catch (err) {
       console.error('Error fetching riders:', err);
@@ -122,13 +107,27 @@ const RidersPage = () => {
       filters.status !== 'all' ||
       filters.availability !== 'all' ||
       filters.onlineStatus !== 'all' ||
-      filters.search !== ''
+      filters.search !== '' ||
+      dateRange.from || dateRange.to
     );
   };
 
   const clearFilters = () => {
+    setDateRange({ from: undefined, to: undefined });
     setFilters(initialFilters);
   };
+
+  // Handle date range changes - only trigger when both dates are selected
+  useEffect(() => {
+    const dateFrom = (dateRange.from && dateRange.to) ? dateRange.from.toISOString().split('T')[0] : null;
+    const dateTo = (dateRange.from && dateRange.to) ? dateRange.to.toISOString().split('T')[0] : null;
+    
+    setFilters(prev => ({
+      ...prev,
+      dateFrom: dateFrom,
+      dateTo: dateTo
+    }));
+  }, [dateRange]);
 
   return (
     <div className="space-y-6">
@@ -220,6 +219,13 @@ const RidersPage = () => {
                 <SelectItem value="offline">Offline</SelectItem>
               </SelectContent>
             </Select>
+
+            <div className="w-full">
+              <DateRangePicker
+                value={dateRange}
+                onChange={(range) => setDateRange(range || { from: undefined, to: undefined })}
+              />
+            </div>
           </div>
 
           {/* Active Filters Display */}

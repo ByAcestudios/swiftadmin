@@ -15,6 +15,7 @@ const UsersPage = () => {
   const [users, setUsers] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [totalUsers, setTotalUsers] = useState(0);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +57,7 @@ const UsersPage = () => {
       const response = await api.get(url);
       setUsers(response.data.users);
       setTotalPages(response.data.pagination.totalPages);
+      setTotalUsers(response.data.pagination.totalUsers || response.data.pagination.total || 0);
       // Use the page we requested, not what the API returns (to avoid resetting)
       setCurrentPage(page);
     } catch (error) {
@@ -261,6 +263,21 @@ const UsersPage = () => {
           <Plus className="w-5 h-5 mr-2" />
           Create User
         </Button>
+      </div>
+
+      {/* Total Users Card */}
+      <div className="bg-white p-6 rounded-lg shadow">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-600">Total Users</p>
+            <p className="text-3xl font-bold text-gray-900 mt-1">{totalUsers.toLocaleString()}</p>
+          </div>
+          <div className="h-12 w-12 bg-[#733E70] bg-opacity-10 rounded-full flex items-center justify-center">
+            <svg className="h-6 w-6 text-[#733E70]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+            </svg>
+          </div>
+        </div>
       </div>
 
       <FilterBar 

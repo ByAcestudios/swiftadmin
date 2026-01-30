@@ -7,6 +7,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Input } from "@/components/ui/input";
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from "@/components/ui/badge";
+import { DateRangePicker } from "@/components/ui/date-range-picker";
 import Pagination from '../users/Pagination';
 import CreateBikeForm from './CreateBikeForm';
 import BikeDetailsModal from './BikeDetailsModal';
@@ -24,23 +25,45 @@ const BikesPage = () => {
     status: 'all',
     vehicleType: 'all',
     availability: 'all',
-    serviceStatus: 'all'
+    serviceStatus: 'all',
+    dateFrom: null,
+    dateTo: null
+  });
+  const [dateRange, setDateRange] = useState({
+    from: undefined,
+    to: undefined,
   });
 
   const clearFilters = () => {
+    setDateRange({ from: undefined, to: undefined });
     setFilters({
       status: 'all',
       vehicleType: 'all',
       availability: 'all',
-      serviceStatus: 'all'
+      serviceStatus: 'all',
+      dateFrom: null,
+      dateTo: null
     });
     setSearchTerm('');
   };
 
   const hasActiveFilters = () => {
     return searchTerm !== '' || 
-      Object.values(filters).some(value => value !== 'all');
+      Object.values(filters).some(value => value !== 'all' && value !== null) ||
+      dateRange.from || dateRange.to;
   };
+
+  // Handle date range changes - only trigger when both dates are selected
+  useEffect(() => {
+    const dateFrom = (dateRange.from && dateRange.to) ? dateRange.from.toISOString().split('T')[0] : null;
+    const dateTo = (dateRange.from && dateRange.to) ? dateRange.to.toISOString().split('T')[0] : null;
+    
+    setFilters(prev => ({
+      ...prev,
+      dateFrom: dateFrom,
+      dateTo: dateTo
+    }));
+  }, [dateRange]);
 
   useEffect(() => {
     fetchBikes();
@@ -48,13 +71,17 @@ const BikesPage = () => {
 
   const fetchBikes = async () => {
     try {
-      const response = await api.get('/api/bikes', {
-        params: {
-          page: currentPage,
-          search: searchTerm || undefined,
-          ...filters
-        }
-      });
+      const params = {
+        page: currentPage,
+        search: searchTerm || undefined,
+        ...filters
+      };
+      
+      // Only include date params if both are set
+      if (filters.dateFrom) params.dateFrom = filters.dateFrom;
+      if (filters.dateTo) params.dateTo = filters.dateTo;
+      
+      const response = await api.get('/api/bikes', { params });
 
       setBikes(response.data.bikes);
       // Update statistics based on filtered data
@@ -175,6 +202,13 @@ const BikesPage = () => {
                     <option value="upcoming">Service Upcoming</option>
                     <option value="completed">Service Completed</option>
                   </select>
+                </div>
+                <div>
+                  <h4 className="font-medium mb-2">Date Range</h4>
+                  <DateRangePicker
+                    value={dateRange}
+                    onChange={(range) => setDateRange(range || { from: undefined, to: undefined })}
+                  />
                 </div>
                 <div className="flex justify-between pt-4 border-t">
                   <Button

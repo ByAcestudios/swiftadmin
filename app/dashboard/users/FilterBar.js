@@ -42,13 +42,17 @@ const FilterBar = ({ onFilterChange, initialFilters = {
   const isInitialMount = useRef(true);
 
   useEffect(() => {
+    // Only include dates if BOTH from and to are selected
+    const dateFrom = (dateRange.from && dateRange.to) ? dateRange.from.toISOString().split('T')[0] : null;
+    const dateTo = (dateRange.from && dateRange.to) ? dateRange.to.toISOString().split('T')[0] : null;
+    
     const newFilters = {
       search: debouncedSearch,
       role: selectedRole,
       status: selectedStatus,
       isVerified: selectedVerification,
-      dateFrom: dateRange.from ? dateRange.from.toISOString().split('T')[0] : null,
-      dateTo: dateRange.to ? dateRange.to.toISOString().split('T')[0] : null
+      dateFrom: dateFrom,
+      dateTo: dateTo
     };
     
     // Skip on initial mount

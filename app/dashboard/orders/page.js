@@ -42,7 +42,9 @@ const OrdersPage = () => {
     search: '',
     orderType: 'all',
     orderStatus: 'all',
-    riderStatus: 'all'
+    riderStatus: 'all',
+    dateFrom: null,
+    dateTo: null
   });
 
   const refreshOrders = async () => {
@@ -56,6 +58,8 @@ const OrdersPage = () => {
       if (filters.riderStatus && filters.riderStatus !== 'all') {
         queryParams.append('hasRider', filters.riderStatus === 'assigned' ? 'true' : 'false');
       }
+      if (filters.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
+      if (filters.dateTo) queryParams.append('dateTo', filters.dateTo);
       queryParams.append('page', currentPage);
 
       const queryString = queryParams.toString();
@@ -88,6 +92,8 @@ const OrdersPage = () => {
         if (filters.riderStatus && filters.riderStatus !== 'all') {
           queryParams.append('hasRider', filters.riderStatus === 'assigned' ? 'true' : 'false');
         }
+        if (filters.dateFrom) queryParams.append('dateFrom', filters.dateFrom);
+        if (filters.dateTo) queryParams.append('dateTo', filters.dateTo);
         queryParams.append('page', currentPage);
 
         const queryString = queryParams.toString();
