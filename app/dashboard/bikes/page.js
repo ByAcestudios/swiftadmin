@@ -115,15 +115,25 @@ const BikesPage = () => {
 
   return (
     <div className="space-y-6">
-      {/* Header with Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
-          <div className="text-sm text-gray-500">Total Vehicles</div>
-          <div className="text-2xl font-bold">{statistics?.total || 0}</div>
-          {hasActiveFilters() && (
-            <div className="text-xs text-gray-400">Filtered from {statistics?.totalUnfiltered || 0}</div>
-          )}
+      {/* Total Vehicles Card */}
+      <div className="bg-white p-6 rounded-lg shadow">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-gray-600">Total Vehicles</p>
+            <p className="text-3xl font-bold text-gray-900 mt-1">
+              {metadata?.totalBikes?.toLocaleString() || statistics?.totalUnfiltered?.toLocaleString() || 0}
+            </p>
+          </div>
+          <div className="h-12 w-12 bg-[#733E70] bg-opacity-10 rounded-full flex items-center justify-center">
+            <svg className="h-6 w-6 text-[#733E70]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+          </div>
         </div>
+      </div>
+
+      {/* Header with Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-lg shadow">
           <div className="text-sm text-gray-500">Active</div>
           <div className="text-2xl font-bold text-green-600">{statistics?.active || 0}</div>
