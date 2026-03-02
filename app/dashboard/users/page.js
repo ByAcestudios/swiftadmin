@@ -6,8 +6,10 @@ import FilterBar from './FilterBar';
 import Pagination from './Pagination';
 import UserForm from './UserForm';
 import { Button } from "@/components/ui/button";
-import { Plus } from 'lucide-react';
+import { Plus, FileText, File } from 'lucide-react';
 import api from '@/lib/api';
+import { exportToExcel, exportToPDF, fetchAllDataForExport } from '@/utils/exportUtils';
+import { useToast } from "@/hooks/use-toast";
 
 // import { toast } from "@/components/ui/use-toast";
 
@@ -20,6 +22,8 @@ const UsersPage = () => {
   const [editingUser, setEditingUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
   const [filters, setFilters] = useState({
     search: '',
     role: 'all',
@@ -175,6 +179,49 @@ const UsersPage = () => {
     }
   };
 
+  const handleExport = async (format) => {
+    try {
+      setIsExporting(true);
+      
+      // Fetch all data with current filters
+      const allUsers = await fetchAllDataForExport('/api/users', filters);
+      
+      // Define columns for export
+      const columns = [
+        { key: 'name', label: 'Name' },
+        { key: 'email', label: 'Email' },
+        { key: 'phoneNumber', label: 'Phone Number' },
+        { key: 'role', label: 'Role' },
+        { key: 'status', label: 'Status' },
+        { key: 'isVerified', label: 'Verified' },
+        { key: 'createdAt', label: 'Created At' },
+      ];
+      
+      if (format === 'excel') {
+        exportToExcel(allUsers, columns, 'users');
+        toast({
+          title: "Success",
+          description: "Users exported to Excel successfully!",
+        });
+      } else if (format === 'pdf') {
+        await exportToPDF(allUsers, columns, 'Users Report', 'users');
+        toast({
+          title: "Success",
+          description: "Users exported to PDF successfully!",
+        });
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({
+        title: "Error",
+        description: "Failed to export users. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleUserAction = async (userId, action) => {
     try {
       switch (action) {
@@ -259,10 +306,30 @@ const UsersPage = () => {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Users</h1>
-        <Button onClick={() => { setEditingUser(null); setIsModalOpen(true); }} className="bg-[#733E70] hover:bg-[#62275F] text-white">
-          <Plus className="w-5 h-5 mr-2" />
-          Create User
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => handleExport('excel')} 
+            variant="outline"
+            disabled={isExporting}
+            className="flex items-center"
+          >
+            <File className="w-4 h-4 mr-2" />
+            {isExporting ? 'Exporting...' : 'Excel'}
+          </Button>
+          <Button 
+            onClick={() => handleExport('pdf')} 
+            variant="outline"
+            disabled={isExporting}
+            className="flex items-center"
+          >
+            <FileText className="w-4 h-4 mr-2" />
+            {isExporting ? 'Exporting...' : 'PDF'}
+          </Button>
+          <Button onClick={() => { setEditingUser(null); setIsModalOpen(true); }} className="bg-[#733E70] hover:bg-[#62275F] text-white">
+            <Plus className="w-5 h-5 mr-2" />
+            Create User
+          </Button>
+        </div>
       </div>
 
       {/* Total Users Card */}

@@ -16,7 +16,8 @@ import {
     Users2,
     Calendar,
     Settings,
-    Bike
+    Bike,
+    ListChecks
   } from 'lucide-react';
 
   
@@ -28,6 +29,7 @@ import {
       { name: 'All Orders', href: '/dashboard/orders' },
       { name: 'Assigned Orders', href: '/dashboard/orders/assigned' },
       { name: 'Unassigned Orders', href: '/dashboard/orders/unassigned' },
+      { name: 'Auto Assign Logs', href: '/dashboard/auto-assign-logs' },
     ] },
     { name: 'Riders', href: '/dashboard/riders', icon: Users },
     { 

@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Eye, Edit, Trash2, UserPlus, Plus } from 'lucide-react';
+import { Eye, Edit, Trash2, UserPlus, Plus, FileText, File } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast"
 import CreateOrderForm from '../CreateOrderForm';
 import OrderActions from '../OrderActions';
@@ -18,6 +18,7 @@ import OrderFilterBar from '../OrderFilterBar';
 import OrdersTable from '../OrdersTable';
 import Pagination from '../pagination';
 import api from '@/lib/api';
+import { exportToExcel, exportToPDF, fetchAllDataForExport } from '@/utils/exportUtils';
 
 const ITEMS_PER_PAGE = 10; // Adjust this value as needed
 
@@ -36,6 +37,7 @@ const OrdersPage = () => {
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAssignRiderModalOpen, setIsAssignRiderModalOpen] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
 
   // Filter state
   const [filters, setFilters] = useState({
@@ -239,6 +241,38 @@ const OrdersPage = () => {
     setIsAssignRiderModalOpen(true);
   };
 
+  const handleExport = async (format) => {
+    try {
+      setIsExporting(true);
+      const exportFilters = { ...filters, hasRider: true };
+      const allOrders = await fetchAllDataForExport('/api/orders', exportFilters);
+      const columns = [
+        { key: 'orderNumber', label: 'Order Number' },
+        { key: 'orderDate', label: 'Order Date' },
+        { key: 'senderName', label: 'Sender' },
+        { key: 'phoneNumber', label: 'Phone Number' },
+        { key: 'pickupAddress', label: 'Pickup Address' },
+        { key: 'orderType', label: 'Type' },
+        { key: 'orderStatus', label: 'Status' },
+        { key: 'rider.name', label: 'Rider' },
+        { key: 'amount', label: 'Amount' },
+        { key: 'currency', label: 'Currency' },
+      ];
+      if (format === 'excel') {
+        exportToExcel(allOrders, columns, 'assigned-orders');
+        toast({ title: "Success", description: "Assigned orders exported to Excel successfully!" });
+      } else if (format === 'pdf') {
+        await exportToPDF(allOrders, columns, 'Assigned Orders Report', 'assigned-orders');
+        toast({ title: "Success", description: "Assigned orders exported to PDF successfully!" });
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({ title: "Error", description: "Failed to export orders. Please try again.", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const handleUpdateOrder = async (updatedOrder) => {
     try {
       await api.put(`/api/orders/${updatedOrder.id}`, updatedOrder);
@@ -270,7 +304,14 @@ const OrdersPage = () => {
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-800">Assigned Orders</h1>
         <div className="flex gap-2">
-        
+          <Button onClick={() => handleExport('excel')} variant="outline" disabled={isExporting} className="flex items-center">
+            <File className="w-4 h-4 mr-2" />
+            {isExporting ? 'Exporting...' : 'Excel'}
+          </Button>
+          <Button onClick={() => handleExport('pdf')} variant="outline" disabled={isExporting} className="flex items-center">
+            <FileText className="w-4 h-4 mr-2" />
+            {isExporting ? 'Exporting...' : 'PDF'}
+          </Button>
           <Button onClick={() => setIsCreateModalOpen(true)} className="bg-[#733E70] hover:bg-[#62275F] text-white">
             <Plus className="w-5 h-5 mr-2" />
             Create Order

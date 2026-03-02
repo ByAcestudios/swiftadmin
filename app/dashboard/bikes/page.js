@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
-import { Plus, Filter, Search } from 'lucide-react';
+import { Plus, Filter, Search, FileText, File } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from '@/components/ui/checkbox';
@@ -12,6 +12,8 @@ import Pagination from '../users/Pagination';
 import CreateBikeForm from './CreateBikeForm';
 import BikeDetailsModal from './BikeDetailsModal';
 import api from '@/lib/api';
+import { exportToExcel, exportToPDF, fetchAllDataForExport } from '@/utils/exportUtils';
+import { useToast } from "@/hooks/use-toast";
 
 const BikesPage = () => {
   const [bikes, setBikes] = useState([]);
@@ -21,6 +23,8 @@ const BikesPage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [isCreatingBike, setIsCreatingBike] = useState(false);
   const [selectedBikeId, setSelectedBikeId] = useState(null);
+  const [isExporting, setIsExporting] = useState(false);
+  const { toast } = useToast();
   const [filters, setFilters] = useState({
     status: 'all',
     vehicleType: 'all',
@@ -111,6 +115,35 @@ const BikesPage = () => {
   const getMaintenanceBadgeVariant = (maintenanceStatus) => {
     if (!maintenanceStatus.isDue) return 'success';
     return maintenanceStatus.daysUntilService < 0 ? 'destructive' : 'warning';
+  };
+
+  const handleExport = async (format) => {
+    try {
+      setIsExporting(true);
+      const allBikes = await fetchAllDataForExport('/api/bikes', filters);
+      const columns = [
+        { key: 'name', label: 'Name' },
+        { key: 'vehicleType', label: 'Type' },
+        { key: 'status', label: 'Status' },
+        { key: 'currentRider.name', label: 'Current Rider' },
+        { key: 'currentRider.phoneNumber', label: 'Rider Phone' },
+        { key: 'maintenanceStatus.isDue', label: 'Service Due' },
+        { key: 'maintenanceStatus.daysUntilService', label: 'Days Until Service' },
+        { key: 'color', label: 'Color' },
+      ];
+      if (format === 'excel') {
+        exportToExcel(allBikes, columns, 'bikes');
+        toast({ title: "Success", description: "Bikes exported to Excel successfully!" });
+      } else if (format === 'pdf') {
+        await exportToPDF(allBikes, columns, 'Bikes Report', 'bikes');
+        toast({ title: "Success", description: "Bikes exported to PDF successfully!" });
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      toast({ title: "Error", description: "Failed to export bikes. Please try again.", variant: "destructive" });
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   return (
@@ -239,10 +272,20 @@ const BikesPage = () => {
             </PopoverContent>
           </Popover>
         </div>
-        <Button onClick={() => setIsCreatingBike(true)} className="bg-[#733E70] hover:bg-[#62275F] text-white">
-          <Plus className="w-4 h-4 mr-2" />
-          Add Vehicle
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => handleExport('excel')} variant="outline" disabled={isExporting} className="flex items-center">
+            <File className="w-4 h-4 mr-2" />
+            {isExporting ? 'Exporting...' : 'Excel'}
+          </Button>
+          <Button onClick={() => handleExport('pdf')} variant="outline" disabled={isExporting} className="flex items-center">
+            <FileText className="w-4 h-4 mr-2" />
+            {isExporting ? 'Exporting...' : 'PDF'}
+          </Button>
+          <Button onClick={() => setIsCreatingBike(true)} className="bg-[#733E70] hover:bg-[#62275F] text-white">
+            <Plus className="w-4 h-4 mr-2" />
+            Add Vehicle
+          </Button>
+        </div>
       </div>
 
       {isCreatingBike ? (

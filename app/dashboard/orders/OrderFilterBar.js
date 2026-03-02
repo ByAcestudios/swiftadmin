@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, X } from "lucide-react";
@@ -59,24 +59,39 @@ const OrderFilterBar = ({ onFilterChange, initialFilters = {
   };
 
   // Handle date range changes - only trigger when both dates are selected
+  const prevDateRangeRef = useRef(dateRange);
+  const filtersRef = useRef(filters);
+  
+  // Update filters ref when filters change
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
+  
   useEffect(() => {
     // Only include dates if BOTH from and to are selected
     const dateFrom = (dateRange.from && dateRange.to) ? dateRange.from.toISOString().split('T')[0] : null;
     const dateTo = (dateRange.from && dateRange.to) ? dateRange.to.toISOString().split('T')[0] : null;
     
-    setFilters(prevFilters => {
-      // Only update if dates actually changed
-      if (prevFilters.dateFrom !== dateFrom || prevFilters.dateTo !== dateTo) {
-        const newFilters = {
-          ...prevFilters,
-          dateFrom: dateFrom,
-          dateTo: dateTo
-        };
+    const prevDateFrom = (prevDateRangeRef.current.from && prevDateRangeRef.current.to) ? prevDateRangeRef.current.from.toISOString().split('T')[0] : null;
+    const prevDateTo = (prevDateRangeRef.current.from && prevDateRangeRef.current.to) ? prevDateRangeRef.current.to.toISOString().split('T')[0] : null;
+    
+    // Only update if dates actually changed
+    if (dateFrom !== prevDateFrom || dateTo !== prevDateTo) {
+      prevDateRangeRef.current = dateRange;
+      
+      const newFilters = {
+        ...filtersRef.current,
+        dateFrom: dateFrom,
+        dateTo: dateTo
+      };
+      
+      setFilters(newFilters);
+      
+      // Call onFilterChange after state update
+      setTimeout(() => {
         onFilterChange(newFilters);
-        return newFilters;
-      }
-      return prevFilters;
-    });
+      }, 0);
+    }
   }, [dateRange, onFilterChange]);
 
   const clearFilters = () => {

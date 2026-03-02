@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Button } from "@/components/ui/button";
-import { Plus, Filter, Search, ChevronLeft, ChevronRight, X, History } from 'lucide-react';
+import { Plus, Filter, Search, ChevronLeft, ChevronRight, X, History, FileText, File } from 'lucide-react';
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
@@ -16,6 +16,7 @@ import SuccessMessage from '@/components/successMessage';
 import CreateRiderForm from './CreateRiderForm';
 import RiderDetailsModal from './RiderDetailsModal';
 import RiderHistoryModal from './RiderHistoryModal';
+import { exportToExcel, exportToPDF, fetchAllDataForExport } from '@/utils/exportUtils';
 
 
 const RidersPage = () => {
@@ -44,6 +45,7 @@ const RidersPage = () => {
   const [error, setError] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
 
   useEffect(() => {
     fetchRiders();
@@ -117,6 +119,37 @@ const RidersPage = () => {
     setFilters(initialFilters);
   };
 
+  const handleExport = async (format) => {
+    try {
+      setIsExporting(true);
+      const allRiders = await fetchAllDataForExport('/api/riders', filters);
+      const columns = [
+        { key: 'firstName', label: 'First Name' },
+        { key: 'lastName', label: 'Last Name' },
+        { key: 'email', label: 'Email' },
+        { key: 'phoneNumber', label: 'Phone Number' },
+        { key: 'status', label: 'Status' },
+        { key: 'details.isOnline', label: 'Online' },
+        { key: 'details.currentOrderId', label: 'Has Active Order' },
+        { key: 'details.orderCount', label: 'Total Orders' },
+      ];
+      if (format === 'excel') {
+        exportToExcel(allRiders, columns, 'riders');
+        setSuccessMessage('Riders exported to Excel successfully!');
+        setShowSuccess(true);
+      } else if (format === 'pdf') {
+        await exportToPDF(allRiders, columns, 'Riders Report', 'riders');
+        setSuccessMessage('Riders exported to PDF successfully!');
+        setShowSuccess(true);
+      }
+    } catch (error) {
+      console.error('Export error:', error);
+      setError('Failed to export riders. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   // Handle date range changes - only trigger when both dates are selected
   useEffect(() => {
     const dateFrom = (dateRange.from && dateRange.to) ? dateRange.from.toISOString().split('T')[0] : null;
@@ -141,10 +174,20 @@ const RidersPage = () => {
           <h1 className="text-2xl font-bold text-gray-800">Riders</h1>
           <p className="text-sm text-gray-600">Manage your delivery riders</p>
         </div>
-        <Button onClick={() => setIsCreatingRider(true)} className="bg-[#733E70] hover:bg-[#62275F]">
-          <Plus className="w-5 h-5 mr-2" />
-          Create Rider
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => handleExport('excel')} variant="outline" disabled={isExporting} className="flex items-center">
+            <File className="w-4 h-4 mr-2" />
+            {isExporting ? 'Exporting...' : 'Excel'}
+          </Button>
+          <Button onClick={() => handleExport('pdf')} variant="outline" disabled={isExporting} className="flex items-center">
+            <FileText className="w-4 h-4 mr-2" />
+            {isExporting ? 'Exporting...' : 'PDF'}
+          </Button>
+          <Button onClick={() => setIsCreatingRider(true)} className="bg-[#733E70] hover:bg-[#62275F]">
+            <Plus className="w-5 h-5 mr-2" />
+            Create Rider
+          </Button>
+        </div>
       </div>
 
       {/* Total Riders Card */}
