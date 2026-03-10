@@ -302,14 +302,6 @@ const OrdersPage = () => {
     }
   };
 
-  if (loading) return <div>Loading orders...</div>;
-  if (error) return (
-    <div className="p-4 text-red-500 bg-red-50 rounded">
-      <h3 className="font-bold">Error</h3>
-      <p>{error}</p>
-    </div>
-  );
-
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
@@ -345,7 +337,13 @@ const OrdersPage = () => {
         initialFilters={filters}
       />
 
-      <div className="bg-white shadow rounded-lg overflow-hidden">
+      <div className="bg-white shadow rounded-lg overflow-hidden relative">
+        {loading && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70">
+            <span className="text-sm text-gray-500">Loading orders...</span>
+          </div>
+        )}
+
         <OrdersTable 
           orders={orders}
           onViewDetails={handleViewDetails}
@@ -353,6 +351,12 @@ const OrdersPage = () => {
           onDeleteOrder={handleDeleteOrder}
           onAssignRider={handleAssignRider}
         />
+
+        {!loading && orders.length === 0 && (
+          <div className="p-6 text-center text-sm text-gray-500">
+            No orders found for the current filters.
+          </div>
+        )}
       </div>
 
       <Pagination

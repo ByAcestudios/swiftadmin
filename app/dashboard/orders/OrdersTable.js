@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -48,13 +49,12 @@ const OrdersTable = ({ orders, onViewDetails, onEditOrder, onDeleteOrder, onAssi
   };
 
   const getSenderName = (order) => {
-    // If senderName is null, it's a registered user order
-    if (!order.senderName) {
-      return order.user?.name || 'Unknown User';
-    }
-    // If senderName exists, it's a guest order
+    if (!order.senderName) return order.user?.name || 'Unknown User';
     return order.senderName;
   };
+
+  const getSenderEmail = (order) => order.user?.email || '—';
+  const getSenderPhone = (order) => order.phoneNumber || order.user?.phoneNumber || '—';
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -75,12 +75,15 @@ const OrdersTable = ({ orders, onViewDetails, onEditOrder, onDeleteOrder, onAssi
   };
 
   return (
-    <Table>
+    <div className="overflow-x-auto">
+      <Table className="min-w-[1000px]">
       <TableHeader>
         <TableRow>
           <TableHead>Order Number</TableHead>
           <TableHead>Order Date</TableHead>
           <TableHead>Sender</TableHead>
+          <TableHead>Email</TableHead>
+          <TableHead>Phone</TableHead>
           <TableHead>Pickup Address</TableHead>
           <TableHead>Type</TableHead>
           <TableHead>Status</TableHead>
@@ -95,7 +98,27 @@ const OrdersTable = ({ orders, onViewDetails, onEditOrder, onDeleteOrder, onAssi
             <TableCell className="text-sm text-gray-600">
               {formatDate(order.orderDate)}
             </TableCell>
-            <TableCell>{getSenderName(order)}</TableCell>
+            <TableCell>
+              {order.user?.id ? (
+                <Link href={`/dashboard/users/${order.user.id}`} className="text-[#62275F] hover:underline font-medium">
+                  {getSenderName(order)}
+                </Link>
+              ) : (
+                getSenderName(order)
+              )}
+            </TableCell>
+            <TableCell className="text-sm text-gray-600 max-w-[180px] truncate" title={getSenderEmail(order)}>
+              {getSenderEmail(order)}
+            </TableCell>
+            <TableCell className="text-sm font-mono">
+              {getSenderPhone(order) !== '—' ? (
+                <a href={`tel:${getSenderPhone(order)}`} className="text-[#62275F] hover:underline">
+                  {getSenderPhone(order)}
+                </a>
+              ) : (
+                <span className="text-gray-500">—</span>
+              )}
+            </TableCell>
             <TableCell className="max-w-xs" title={order.pickupAddress}>
               {truncateAddress(order.pickupAddress)}
             </TableCell>
@@ -111,7 +134,16 @@ const OrdersTable = ({ orders, onViewDetails, onEditOrder, onDeleteOrder, onAssi
             </TableCell>
             <TableCell>
               {order.rider ? (
-                <span className="text-sm">{order.rider.name}</span>
+                <div className="text-sm">
+                  <Link href={`/dashboard/riders/${order.rider.id}`} className="text-[#62275F] hover:underline font-medium block">
+                    {order.rider.name?.trim()}
+                  </Link>
+                  {order.rider.phoneNumber && (
+                    <a href={`tel:${order.rider.phoneNumber}`} className="text-xs font-mono text-[#62275F] hover:underline">
+                      {order.rider.phoneNumber}
+                    </a>
+                  )}
+                </div>
               ) : (
                 <span className="text-sm text-gray-400">Not Assigned</span>
               )}
@@ -150,6 +182,7 @@ const OrdersTable = ({ orders, onViewDetails, onEditOrder, onDeleteOrder, onAssi
         ))}
       </TableBody>
     </Table>
+    </div>
   );
 };
 

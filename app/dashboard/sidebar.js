@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
@@ -17,7 +17,8 @@ import {
     Calendar,
     Settings,
     Bike,
-    ListChecks
+    ListChecks,
+    Globe
   } from 'lucide-react';
 
   
@@ -31,6 +32,7 @@ import {
       { name: 'Unassigned Orders', href: '/dashboard/orders/unassigned' },
       { name: 'Auto Assign Logs', href: '/dashboard/auto-assign-logs' },
     ] },
+    { name: 'Birds Eye View', href: '/dashboard/birds-eye', icon: Globe },
     { name: 'Riders', href: '/dashboard/riders', icon: Users },
     { 
       name: 'Bikes', 
@@ -55,17 +57,31 @@ import {
     },
     // { name: 'Team', href: '/dashboard/team', icon: Users2 },
     // { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
-    { name: 'Settings', href: '/dashboard/settings', icon: Settings },
+    { name: 'Settings', href: '/dashboard/settings', icon: Settings, subItems: [
+      { name: 'Order Management', href: '/dashboard/settings#order-management' },
+      { name: 'Delivery Restrictions', href: '/dashboard/settings#delivery-restrictions' },
+      { name: 'App Version Control', href: '/dashboard/settings#app-version-control' },
+      { name: 'Admin Notifications', href: '/dashboard/settings#admin-notifications' },
+    ] },
   ];
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
-  const [openSubMenu, setOpenSubMenu] = useState(null);
   const pathname = usePathname();
+  const settingsIndex = menuItems.findIndex(i => i.href === '/dashboard/settings');
+  const [openSubMenu, setOpenSubMenu] = useState(() =>
+    pathname === '/dashboard/settings' && settingsIndex >= 0 ? settingsIndex : null
+  );
+
+  useEffect(() => {
+    if (pathname === '/dashboard/settings' && settingsIndex >= 0) {
+      setOpenSubMenu(settingsIndex);
+    }
+  }, [pathname, settingsIndex]);
 
   const toggleSubMenu = (index) => setOpenSubMenu(openSubMenu === index ? null : index);
 
   const MenuItem = ({ item, index }) => {
-    const isActive = pathname === item.href || (item.subItems && item.subItems.some(subItem => pathname === subItem.href));
+    const isActive = pathname === item.href || (item.subItems && pathname.startsWith(item.href));
     const hasSubItems = item.subItems && item.subItems.length > 0;
     const Icon = item.icon;
 

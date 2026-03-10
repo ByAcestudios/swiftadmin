@@ -1,15 +1,28 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
-import { Edit, Save, Info, Clock, Calendar, HelpCircle } from 'lucide-react';
+import { Switch } from "@/components/ui/switch";
+import { Edit, Save, Info, Clock, Calendar, HelpCircle, Smartphone, Mail, Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
 
 /* eslint-disable react-hooks/exhaustive-deps */
+
+const defaultPlatformVersion = () => ({
+  minVersion: '',
+  latestVersion: '',
+  forceUpdate: false,
+  releaseNotes: ''
+});
+
+const defaultAppVersions = () => ({
+  rider: { android: defaultPlatformVersion(), ios: defaultPlatformVersion() },
+  user: { android: defaultPlatformVersion(), ios: defaultPlatformVersion() }
+});
 
 const SettingsPage = () => {
   const [settingsData, setSettingsData] = useState({
@@ -23,9 +36,68 @@ const SettingsPage = () => {
   const [initialLoad, setInitialLoad] = useState(true);
   const [successMessage, setSuccessMessage] = useState(null);
 
+  // App Version Control (per docs/versionControl.md)
+  const [appVersions, setAppVersions] = useState(null);
+  const [versionControlLoading, setVersionControlLoading] = useState(true);
+  const [versionControlSaving, setVersionControlSaving] = useState(false);
+  const [versionControlEditing, setVersionControlEditing] = useState(false);
+
+  // Admin Notifications (per docs/admin-notifications.md)
+  const defaultAdminNotificationSettings = () => ({ enabled: false, emails: [] });
+  const [adminNotificationSettings, setAdminNotificationSettings] = useState(defaultAdminNotificationSettings);
+  const [adminNotificationSaving, setAdminNotificationSaving] = useState(false);
+  const adminNotificationSyncedRef = useRef(false);
+
   useEffect(() => {
     fetchSettings();
   }, []);
+
+  // Sync admin notification settings from server once when settings load
+  useEffect(() => {
+    if (adminNotificationSyncedRef.current || !settingsData.settings?.length) return;
+    const setting = settingsData.settings.find(s => s.key && s.key.toLowerCase() === 'adminnotificationsettings');
+    const raw = setting?.value;
+    const parsed = tryParseJSON(raw);
+    if (parsed && typeof parsed === 'object') {
+      adminNotificationSyncedRef.current = true;
+      setAdminNotificationSettings({
+        enabled: !!parsed.enabled,
+        emails: Array.isArray(parsed.emails) ? parsed.emails.filter(e => typeof e === 'string' && e.trim()) : []
+      });
+    }
+  }, [settingsData.settings]);
+
+  useEffect(() => {
+    const fetchAppVersions = async () => {
+      try {
+        setVersionControlLoading(true);
+        const res = await api.get('/api/settings/app-versions');
+        const data = res.data;
+        if (data && (data.rider || data.user)) {
+          setAppVersions({
+            rider: {
+              android: { ...defaultPlatformVersion(), ...data.rider?.android },
+              ios: { ...defaultPlatformVersion(), ...data.rider?.ios }
+            },
+            user: {
+              android: { ...defaultPlatformVersion(), ...data.user?.android },
+              ios: { ...defaultPlatformVersion(), ...data.user?.ios }
+            }
+          });
+        } else {
+          setAppVersions(defaultAppVersions());
+        }
+      } catch (e) {
+        console.error('Failed to load app versions:', e);
+        setAppVersions(defaultAppVersions());
+      } finally {
+        setVersionControlLoading(false);
+      }
+    };
+    fetchAppVersions();
+  }, []);
+
+  const slugify = (s) => (s || '').replace(/([A-Z])/g, '-$1').toLowerCase().replace(/[\s-]+/g, '-').replace(/^-|-$/g, '');
 
   const tryParseJSON = (str) => {
     try {
@@ -742,6 +814,139 @@ const SettingsPage = () => {
     await handleSave();
   };
 
+  const setVersionField = (app, platform, field, value) => {
+    setAppVersions(prev => {
+      const next = prev ? { ...prev } : defaultAppVersions();
+      const plat = next[app]?.[platform] ? { ...next[app][platform] } : defaultPlatformVersion();
+      plat[field] = value;
+      next[app] = { ...next[app], [platform]: plat };
+      return next;
+    });
+  };
+
+  const fetchAppVersions = async () => {
+    try {
+      const res = await api.get('/api/settings/app-versions');
+      const data = res.data;
+      if (data && (data.rider || data.user)) {
+        setAppVersions({
+          rider: {
+            android: { ...defaultPlatformVersion(), ...data.rider?.android },
+            ios: { ...defaultPlatformVersion(), ...data.rider?.ios }
+          },
+          user: {
+            android: { ...defaultPlatformVersion(), ...data.user?.android },
+            ios: { ...defaultPlatformVersion(), ...data.user?.ios }
+          }
+        });
+      }
+    } catch (e) {
+      console.error('Failed to load app versions:', e);
+    }
+  };
+
+  const saveAppVersionRider = async () => {
+    if (!appVersions?.rider) return;
+    try {
+      setVersionControlSaving(true);
+      await api.put('/api/settings/appVersionRider', { value: appVersions.rider });
+      setSuccessMessage('Rider app versions saved.');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      setVersionControlEditing(false);
+      await fetchAppVersions();
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to save rider app versions.');
+    } finally {
+      setVersionControlSaving(false);
+    }
+  };
+
+  const saveAppVersionUser = async () => {
+    if (!appVersions?.user) return;
+    try {
+      setVersionControlSaving(true);
+      await api.put('/api/settings/appVersionUser', { value: appVersions.user });
+      setSuccessMessage('User app versions saved.');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      setVersionControlEditing(false);
+      await fetchAppVersions();
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to save user app versions.');
+    } finally {
+      setVersionControlSaving(false);
+    }
+  };
+
+  const saveAllVersionControl = async () => {
+    await saveAppVersionRider();
+    await saveAppVersionUser();
+  };
+
+  // Admin Notifications: update local state
+  const setAdminNotificationEnabled = (enabled) => {
+    setAdminNotificationSettings(prev => ({ ...prev, enabled }));
+  };
+  const setAdminNotificationEmails = (emails) => {
+    setAdminNotificationSettings(prev => ({ ...prev, emails }));
+  };
+  const addAdminNotificationEmail = () => {
+    setAdminNotificationSettings(prev => ({ ...prev, emails: [...(prev.emails || []), ''] }));
+  };
+  const updateAdminNotificationEmail = (index, value) => {
+    setAdminNotificationSettings(prev => {
+      const next = [...(prev.emails || [])];
+      next[index] = value;
+      return { ...prev, emails: next };
+    });
+  };
+  const removeAdminNotificationEmail = (index) => {
+    setAdminNotificationSettings(prev => ({
+      ...prev,
+      emails: (prev.emails || []).filter((_, i) => i !== index)
+    }));
+  };
+
+  const isValidEmail = (s) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test((s || '').trim());
+
+  const saveAdminNotificationSettings = async () => {
+    const emails = (adminNotificationSettings.emails || [])
+      .map(e => (e || '').trim())
+      .filter(Boolean);
+    const uniqueEmails = [...new Set(emails)];
+    const invalid = uniqueEmails.filter(e => !isValidEmail(e));
+    if (invalid.length > 0) {
+      setError(`Invalid email(s): ${invalid.join(', ')}`);
+      return;
+    }
+    try {
+      setAdminNotificationSaving(true);
+      setError(null);
+      await api.put('/api/settings/adminNotificationSettings', {
+        value: {
+          enabled: !!adminNotificationSettings.enabled,
+          emails: uniqueEmails
+        }
+      });
+      setSuccessMessage('Admin notification settings saved.');
+      setTimeout(() => setSuccessMessage(null), 3000);
+      setAdminNotificationSettings(prev => ({ ...prev, emails: uniqueEmails }));
+    } catch (e) {
+      setError(e.response?.data?.message || 'Failed to save admin notification settings.');
+    } finally {
+      setAdminNotificationSaving(false);
+    }
+  };
+
+  // Scroll to section when URL has hash (e.g. from sidebar link)
+  useEffect(() => {
+    if (initialLoad || typeof window === 'undefined') return;
+    const hash = window.location.hash?.slice(1);
+    if (hash) {
+      const el = document.getElementById(hash);
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [initialLoad]);
+
   if (initialLoad) return <div>Loading settings...</div>;
   if (error) return (
     <div className="p-4 text-red-500 bg-red-50 rounded">
@@ -764,7 +969,7 @@ const SettingsPage = () => {
       </div>
 
       {Object.entries(settingsData.config || {}).map(([category, categoryData]) => (
-        <div key={category} className="bg-white rounded-lg shadow p-6">
+        <div key={category} id={slugify(category)} className="bg-white rounded-lg shadow p-6 scroll-mt-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">{categoryData.label}</h2>
             <div>
@@ -864,7 +1069,7 @@ const SettingsPage = () => {
         if (deliveryRestrictions.length === 0) return null;
         
         return (
-          <div className="bg-white rounded-lg shadow p-6">
+          <div id="delivery-restrictions" className="bg-white rounded-lg shadow p-6 scroll-mt-6">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Delivery Restrictions</h2>
               <div>
@@ -927,6 +1132,209 @@ const SettingsPage = () => {
           </div>
         );
       })()}
+
+      {/* App Version Control (per docs/versionControl.md) */}
+      <div id="app-version-control" className="bg-white rounded-lg shadow p-6 scroll-mt-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Smartphone className="h-5 w-5" />
+            App Version Control
+          </h2>
+          <div>
+            {versionControlEditing ? (
+              <Button
+                onClick={saveAllVersionControl}
+                disabled={versionControlSaving || !appVersions}
+              >
+                <Save className="h-4 w-4 mr-2" />
+                {versionControlSaving ? 'Saving...' : 'Save All'}
+              </Button>
+            ) : (
+              <Button variant="outline" onClick={() => setVersionControlEditing(true)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            )}
+          </div>
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          Set minimum and latest app versions per platform for Rider/Driver and User (customer) apps. Apps compare their version and can show release notes.
+        </p>
+        {versionControlLoading ? (
+          <p className="text-sm text-gray-500">Loading version settings...</p>
+        ) : appVersions && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Rider/Driver app */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="font-medium text-gray-800">Rider / Driver app</h3>
+              {['android', 'ios'].map((platform) => {
+                const p = appVersions.rider?.[platform] || defaultPlatformVersion();
+                return (
+                  <div key={platform} className="space-y-3 pl-2 border-l-2 border-[#62275F]">
+                    <h4 className="text-sm font-medium capitalize">{platform}</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div>
+                        <Label className="text-xs">Min version</Label>
+                        <Input
+                          value={p.minVersion}
+                          onChange={(e) => setVersionField('rider', platform, 'minVersion', e.target.value)}
+                          placeholder="e.g. 1.2.0"
+                          disabled={!versionControlEditing}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Latest version</Label>
+                        <Input
+                          value={p.latestVersion}
+                          onChange={(e) => setVersionField('rider', platform, 'latestVersion', e.target.value)}
+                          placeholder="e.g. 1.3.0"
+                          disabled={!versionControlEditing}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={!!p.forceUpdate}
+                          onCheckedChange={(checked) => setVersionField('rider', platform, 'forceUpdate', checked)}
+                          disabled={!versionControlEditing}
+                        />
+                        <Label className="text-xs">Force update (block until updated)</Label>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Release notes</Label>
+                        <textarea
+                          value={p.releaseNotes || ''}
+                          onChange={(e) => setVersionField('rider', platform, 'releaseNotes', e.target.value)}
+                          placeholder="What changed"
+                          disabled={!versionControlEditing}
+                          className="mt-1 w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* User (customer) app */}
+            <div className="border rounded-lg p-4 space-y-4">
+              <h3 className="font-medium text-gray-800">User (customer) app</h3>
+              {['android', 'ios'].map((platform) => {
+                const p = appVersions.user?.[platform] || defaultPlatformVersion();
+                return (
+                  <div key={platform} className="space-y-3 pl-2 border-l-2 border-[#62275F]">
+                    <h4 className="text-sm font-medium capitalize">{platform}</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div>
+                        <Label className="text-xs">Min version</Label>
+                        <Input
+                          value={p.minVersion}
+                          onChange={(e) => setVersionField('user', platform, 'minVersion', e.target.value)}
+                          placeholder="e.g. 1.1.0"
+                          disabled={!versionControlEditing}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs">Latest version</Label>
+                        <Input
+                          value={p.latestVersion}
+                          onChange={(e) => setVersionField('user', platform, 'latestVersion', e.target.value)}
+                          placeholder="e.g. 1.2.0"
+                          disabled={!versionControlEditing}
+                          className="mt-1"
+                        />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={!!p.forceUpdate}
+                          onCheckedChange={(checked) => setVersionField('user', platform, 'forceUpdate', checked)}
+                          disabled={!versionControlEditing}
+                        />
+                        <Label className="text-xs">Force update (block until updated)</Label>
+                      </div>
+                      <div>
+                        <Label className="text-xs">Release notes</Label>
+                        <textarea
+                          value={p.releaseNotes || ''}
+                          onChange={(e) => setVersionField('user', platform, 'releaseNotes', e.target.value)}
+                          placeholder="What changed"
+                          disabled={!versionControlEditing}
+                          className="mt-1 w-full min-h-[60px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Admin Notifications (per docs/admin-notifications.md) */}
+      <div id="admin-notifications" className="bg-white rounded-lg shadow p-6 scroll-mt-6">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-xl font-semibold flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            Admin Notifications
+          </h2>
+          <Button
+            onClick={saveAdminNotificationSettings}
+            disabled={adminNotificationSaving}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {adminNotificationSaving ? 'Saving...' : 'Save'}
+          </Button>
+        </div>
+        <p className="text-sm text-gray-500 mb-4">
+          When auto-assign creates new ride requests, these admins can receive an email summary (order + riders). Turn off to disable for everyone.
+        </p>
+        <div className="space-y-4">
+          <div className="flex items-center gap-3">
+            <Switch
+              id="admin-notif-enabled"
+              checked={!!adminNotificationSettings.enabled}
+              onCheckedChange={setAdminNotificationEnabled}
+            />
+            <Label htmlFor="admin-notif-enabled" className="font-medium">
+              Enable admin notifications (email when new ride requests are created)
+            </Label>
+          </div>
+          <div>
+            <Label className="text-sm font-medium text-gray-700 mb-2 block">Admin emails (one per line or add below)</Label>
+            <div className="space-y-2">
+              {(adminNotificationSettings.emails || []).map((email, index) => (
+                <div key={index} className="flex gap-2 items-center">
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => updateAdminNotificationEmail(index, e.target.value)}
+                    placeholder="admin@example.com"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => removeAdminNotificationEmail(index)}
+                    aria-label="Remove email"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={addAdminNotificationEmail}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add email
+              </Button>
+            </div>
+            {!(adminNotificationSettings.emails || []).length && adminNotificationSettings.enabled && (
+              <p className="text-xs text-amber-600 mt-2">Add at least one email to receive notifications.</p>
+            )}
+          </div>
+        </div>
+      </div>
 
       {successMessage && (
         <div className="fixed bottom-4 right-4 bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">

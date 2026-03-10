@@ -69,10 +69,10 @@ export const exportToPDF = async (data, columns, title = 'Export', filename = 'e
     throw new Error('No data to export');
   }
 
-  // Dynamically import jspdf-autotable to ensure it's loaded
-  // This extends the jsPDF prototype with autoTable method
-  await import('jspdf-autotable');
-  
+  // Dynamically import jspdf-autotable and use its helper directly.
+  // Newer versions no longer reliably extend jsPDF.prototype.
+  const { default: autoTable } = await import('jspdf-autotable');
+
   const doc = new jsPDF('l', 'mm', 'a4'); // landscape orientation for tables
 
   // Add title
@@ -107,28 +107,24 @@ export const exportToPDF = async (data, columns, title = 'Export', filename = 'e
 
   const tableHeaders = columns.map(col => col.label);
 
-  // Add table - autoTable should be available after importing jspdf-autotable
-  if (typeof doc.autoTable === 'function') {
-    doc.autoTable({
-      startY: 30,
-      head: [tableHeaders],
-      body: tableData,
-      theme: 'striped',
-      headStyles: { 
-        fillColor: [98, 39, 95], // Brand primary color
-        textColor: 255,
-        fontStyle: 'bold'
-      },
-      styles: {
-        fontSize: 8,
-        cellPadding: 2,
-      },
-      margin: { top: 30, left: 14, right: 14 },
-      columnStyles: columns.map(() => ({ cellWidth: 'auto' })),
-    });
-  } else {
-    throw new Error('jspdf-autotable plugin not loaded. autoTable method is not available on jsPDF instance.');
-  }
+  // Add table using the autoTable helper
+  autoTable(doc, {
+    startY: 30,
+    head: [tableHeaders],
+    body: tableData,
+    theme: 'striped',
+    headStyles: { 
+      fillColor: [98, 39, 95], // Brand primary color
+      textColor: 255,
+      fontStyle: 'bold'
+    },
+    styles: {
+      fontSize: 8,
+      cellPadding: 2,
+    },
+    margin: { top: 30, left: 14, right: 14 },
+    columnStyles: columns.map(() => ({ cellWidth: 'auto' })),
+  });
 
   // Save PDF
   const fileName = `${filename}-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
