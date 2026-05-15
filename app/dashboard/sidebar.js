@@ -18,7 +18,8 @@ import {
     Settings,
     Bike,
     ListChecks,
-    Globe
+    Globe,
+    Megaphone
   } from 'lucide-react';
 
   
@@ -46,6 +47,14 @@ import {
     },
     // { name: 'To-do', href: '/dashboard/todo', icon: ClipboardList },
     { name: 'Coupons', href: '/dashboard/coupons', icon: Tag },
+    {
+      name: 'Promotions',
+      href: '/dashboard/campaigns',
+      icon: Megaphone,
+      subItems: [
+        { name: 'Campaigns', href: '/dashboard/campaigns' },
+      ],
+    },
     { 
       name: 'Users', 
       href: '/dashboard/users', 
@@ -72,11 +81,15 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     pathname === '/dashboard/settings' && settingsIndex >= 0 ? settingsIndex : null
   );
 
+  const promotionsIndex = menuItems.findIndex((i) => i.href === '/dashboard/campaigns');
+
   useEffect(() => {
     if (pathname === '/dashboard/settings' && settingsIndex >= 0) {
       setOpenSubMenu(settingsIndex);
+    } else if (pathname.startsWith('/dashboard/campaigns') && promotionsIndex >= 0) {
+      setOpenSubMenu(promotionsIndex);
     }
-  }, [pathname, settingsIndex]);
+  }, [pathname, settingsIndex, promotionsIndex]);
 
   const toggleSubMenu = (index) => setOpenSubMenu(openSubMenu === index ? null : index);
 
