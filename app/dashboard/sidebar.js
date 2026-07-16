@@ -19,7 +19,8 @@ import {
     Bike,
     ListChecks,
     Globe,
-    Megaphone
+    Megaphone,
+    Wallet
   } from 'lucide-react';
 
   
@@ -55,6 +56,7 @@ import {
         { name: 'Campaigns', href: '/dashboard/campaigns' },
       ],
     },
+    { name: 'Finance', href: '/dashboard/finance', icon: Wallet },
     { 
       name: 'Users', 
       href: '/dashboard/users', 
