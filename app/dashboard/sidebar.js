@@ -3,111 +3,50 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { 
-    ChevronDown, 
-    ChevronUp,
-    LayoutDashboard,
-    MessageSquare,
-    ShoppingCart,
-    Users,
-    ClipboardList,
-    Tag,
-    UserCircle,
-    Users2,
-    Calendar,
-    Settings,
-    Bike,
-    ListChecks,
-    Globe,
-    Megaphone,
-    Wallet
-  } from 'lucide-react';
+import { ChevronDown, ChevronUp } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
 
-  
-  
-  const menuItems = [
-    { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-    // { name: 'Messages', href: '/dashboard/messages', icon: MessageSquare },
-    { name: 'Orders', href: '/dashboard/orders', icon: ShoppingCart, subItems: [
-      { name: 'All Orders', href: '/dashboard/orders' },
-      { name: 'Assigned Orders', href: '/dashboard/orders/assigned' },
-      { name: 'Unassigned Orders', href: '/dashboard/orders/unassigned' },
-      { name: 'Auto Assign Logs', href: '/dashboard/auto-assign-logs' },
-    ] },
-    { name: 'Birds Eye View', href: '/dashboard/birds-eye', icon: Globe },
-    { name: 'Riders', href: '/dashboard/riders', icon: Users },
-    { 
-      name: 'Bikes', 
-      href: '/dashboard/bikes', 
-      icon: Bike,
-      // subItems: [
-      //   { name: 'All Bikes', href: '/dashboard/bikes' },
-      //   { name: 'Add Bike', href: '/dashboard/bikes/add' },
-      //   { name: 'Maintenance', href: '/dashboard/bikes/maintenance' },
-      // ]
-    },
-    // { name: 'To-do', href: '/dashboard/todo', icon: ClipboardList },
-    { name: 'Coupons', href: '/dashboard/coupons', icon: Tag },
-    {
-      name: 'Promotions',
-      href: '/dashboard/campaigns',
-      icon: Megaphone,
-      subItems: [
-        { name: 'Campaigns', href: '/dashboard/campaigns' },
-      ],
-    },
-    { name: 'Finance', href: '/dashboard/finance', icon: Wallet },
-    { 
-      name: 'Users', 
-      href: '/dashboard/users', 
-      icon: UserCircle,
-      subItems: [
-        { name: 'All Users', href: '/dashboard/users' },
-        // { name: 'Add User', href: '/dashboard/users/add' },
-      ]
-    },
-    // { name: 'Team', href: '/dashboard/team', icon: Users2 },
-    // { name: 'Calendar', href: '/dashboard/calendar', icon: Calendar },
-    { name: 'Settings', href: '/dashboard/settings', icon: Settings, subItems: [
-      { name: 'Order Management', href: '/dashboard/settings#order-management' },
-      { name: 'Delivery Restrictions', href: '/dashboard/settings#delivery-restrictions' },
-      { name: 'App Version Control', href: '/dashboard/settings#app-version-control' },
-      { name: 'Admin Notifications', href: '/dashboard/settings#admin-notifications' },
-    ] },
-  ];
-
-const Sidebar = ({ isOpen, toggleSidebar }) => {
+const Sidebar = ({ isOpen }) => {
   const pathname = usePathname();
-  const settingsIndex = menuItems.findIndex(i => i.href === '/dashboard/settings');
-  const [openSubMenu, setOpenSubMenu] = useState(() =>
-    pathname === '/dashboard/settings' && settingsIndex >= 0 ? settingsIndex : null
-  );
-
-  const promotionsIndex = menuItems.findIndex((i) => i.href === '/dashboard/campaigns');
+  const { sidebarItems, isLoading } = useAuth();
+  const [openSubMenu, setOpenSubMenu] = useState(null);
 
   useEffect(() => {
-    if (pathname === '/dashboard/settings' && settingsIndex >= 0) {
-      setOpenSubMenu(settingsIndex);
-    } else if (pathname.startsWith('/dashboard/campaigns') && promotionsIndex >= 0) {
-      setOpenSubMenu(promotionsIndex);
+    const activeIndex = sidebarItems.findIndex((item) => {
+      if (pathname === item.href) return true;
+      if (item.subItems?.some((sub) => pathname === sub.href || pathname.startsWith(item.href))) {
+        return true;
+      }
+      return item.subItems && pathname.startsWith(item.href);
+    });
+    if (activeIndex >= 0) {
+      setOpenSubMenu(activeIndex);
     }
-  }, [pathname, settingsIndex, promotionsIndex]);
+  }, [pathname, sidebarItems]);
 
   const toggleSubMenu = (index) => setOpenSubMenu(openSubMenu === index ? null : index);
 
   const MenuItem = ({ item, index }) => {
-    const isActive = pathname === item.href || (item.subItems && pathname.startsWith(item.href));
+    const isActive =
+      pathname === item.href ||
+      (item.subItems && item.subItems.some((sub) => pathname === sub.href)) ||
+      (item.subItems && pathname.startsWith(item.href));
     const hasSubItems = item.subItems && item.subItems.length > 0;
     const Icon = item.icon;
 
     return (
-        <div className="mb-4">
+      <div className="mb-4">
         <Link
           href={hasSubItems ? '#' : item.href}
           className={`flex items-center px-4 py-2 rounded-xl transition-colors duration-200 ${
             isActive ? 'bg-[#62275F] text-white' : 'text-[#B99FB7] hover:bg-[#62275F] hover:text-white'
           }`}
-          onClick={() => hasSubItems && toggleSubMenu(index)}
+          onClick={(e) => {
+            if (hasSubItems) {
+              e.preventDefault();
+              toggleSubMenu(index);
+            }
+          }}
         >
           <Icon className="mr-3 h-5 w-5" />
           <span>{item.name}</span>
@@ -119,12 +58,14 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         </Link>
         {hasSubItems && openSubMenu === index && (
           <div className="ml-6 mt-2 space-y-2">
-            {item.subItems.map((subItem, subIndex) => (
+            {item.subItems.map((subItem) => (
               <Link
-                key={subIndex}
+                key={subItem.href}
                 href={subItem.href}
                 className={`block px-4 py-2 rounded-xl transition-colors duration-200 ${
-                  pathname === subItem.href ? 'bg-[#62275F] text-white' : 'text-[#B99FB7] hover:bg-[#62275F] hover:text-white'
+                  pathname === subItem.href
+                    ? 'bg-[#62275F] text-white'
+                    : 'text-[#B99FB7] hover:bg-[#62275F] hover:text-white'
                 }`}
               >
                 {subItem.name}
@@ -138,14 +79,18 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
   return (
     <div
-      className={`bg-white text-[#B99FB7] w-64 h-full py-7 px-2 fixed top-16 left-0 transform ${
+      className={`bg-white text-[#B99FB7] w-64 fixed top-16 left-0 bottom-0 py-7 px-2 transform ${
         isOpen ? 'translate-x-0' : '-translate-x-full'
-      } transition-transform duration-200 ease-in-out z-30 overflow-y-auto`}
+      } transition-transform duration-200 ease-in-out z-30 overflow-y-auto overscroll-contain`}
     >
       <nav className="space-y-4">
-        {menuItems.map((item, index) => (
-          <MenuItem key={index} item={item} index={index} />
-        ))}
+        {isLoading ? (
+          <p className="px-4 text-sm text-gray-400">Loading menu...</p>
+        ) : sidebarItems.length === 0 ? (
+          <p className="px-4 text-sm text-gray-400">No modules assigned</p>
+        ) : (
+          sidebarItems.map((item, index) => <MenuItem key={item.key} item={item} index={index} />)
+        )}
       </nav>
     </div>
   );

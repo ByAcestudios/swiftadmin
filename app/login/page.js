@@ -4,11 +4,11 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Eye, EyeOff } from 'lucide-react';
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import axios from 'axios';
-import { AuthProvider } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import api from '@/lib/api';
+import { isAdminRole } from '@/lib/rbac';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -19,13 +19,6 @@ export default function LoginPage() {
   const [needsVerification, setNeedsVerification] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
   const router = useRouter();
-
-  const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-  });
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -42,14 +35,20 @@ export default function LoginPage() {
     try {
       const response = await api.post('/api/auth/login', { email, password });
 
-      if (response.data && response.data.token) {
+      if (response.data?.token) {
         const { user, token } = response.data;
-        
-        if (user.role === 'admin' || user.isVerified) {
+
+        if (isAdminRole(user?.role)) {
           localStorage.setItem('token', token);
-          localStorage.setItem('userRole', user.role);
+          localStorage.setItem('userContext', JSON.stringify(user));
+          if (response.data.admin) {
+            localStorage.setItem('adminContext', JSON.stringify(response.data.admin));
+          }
           router.push('/dashboard');
-        } else if (!user.isVerified) {
+          return;
+        }
+
+        if (!user?.isVerified) {
           setNeedsVerification(true);
           setError('Email not verified. Please check your email or resend verification.');
         } else {
@@ -60,7 +59,7 @@ export default function LoginPage() {
       }
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.response?.data?.error || 'An error occurred during login');
+      setError(err.response?.data?.error || err.response?.data?.message || 'An error occurred during login');
     } finally {
       setIsLoading(false);
     }
@@ -79,29 +78,21 @@ export default function LoginPage() {
     }
   };
 
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
-  };
-
   return (
-    <AuthProvider>
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
       <Card className="w-full max-w-md">
         <CardHeader className="space-y-1">
           <div className="flex justify-center mb-4">
-            <Image
-              src="/logos/logo.svg"
-              alt="Swift Logistics Logo"
-              width={300}
-              height={300}
-            />
+            <Image src="/logos/logo.svg" alt="Swift Logistics Logo" width={300} height={300} />
           </div>
           <CardTitle className="text-2xl font-bold text-center">Login to Swift Logistics</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium">Email</label>
+              <label htmlFor="email" className="text-sm font-medium">
+                Email
+              </label>
               <Input
                 id="email"
                 type="email"
@@ -112,11 +103,13 @@ export default function LoginPage() {
               />
             </div>
             <div className="space-y-2">
-              <label htmlFor="password" className="text-sm font-medium">Password</label>
+              <label htmlFor="password" className="text-sm font-medium">
+                Password
+              </label>
               <div className="relative">
                 <Input
                   id="password"
-                  type={showPassword ? "text" : "password"}
+                  type={showPassword ? 'text' : 'password'}
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -124,15 +117,11 @@ export default function LoginPage() {
                 />
                 <button
                   type="button"
-                  onClick={togglePasswordVisibility}
+                  onClick={() => setShowPassword(!showPassword)}
                   className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
                   disabled={isLoading}
                 >
-                  {showPassword ? (
-                    <EyeOff className="h-5 w-5" />
-                  ) : (
-                    <Eye className="h-5 w-5" />
-                  )}
+                  {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
@@ -159,6 +148,5 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </div>
-    </AuthProvider>
   );
 }

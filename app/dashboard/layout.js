@@ -6,6 +6,7 @@ import Navbar from './navbar';
 
 import { AuthProvider } from '@/contexts/AuthContext';
 import ProtectedRoute from '@/components/protectedRoutes';
+import PermissionGuard from '@/components/PermissionGuard';
 import { Toaster } from "@/components/ui/toaster"
 
 
@@ -26,7 +27,7 @@ export default function DashboardLayout({ children }) {
             isSidebarOpen ? 'md:ml-64' : ''
           }`}
         >
-          {children}
+          <PermissionGuard>{children}</PermissionGuard>
         </main>
         {isSidebarOpen && (
           <div

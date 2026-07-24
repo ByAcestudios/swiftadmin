@@ -15,6 +15,7 @@ import { Badge } from '@/components/ui/badge';
 import { Plus, Search, X, Megaphone, Pause, Play } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api';
+import Can from '@/components/Can';
 import Pagination from '../users/Pagination';
 import CampaignForm from './CampaignForm';
 import {
@@ -103,13 +104,15 @@ export default function CampaignsPage() {
           </p>
         </div>
         {!isCreating && !editingCampaign && (
-          <Button
-            onClick={() => setIsCreating(true)}
-            className="bg-[#733E70] hover:bg-[#62275F] text-white"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Create campaign
-          </Button>
+          <Can module="campaigns" action="create">
+            <Button
+              onClick={() => setIsCreating(true)}
+              className="bg-[#733E70] hover:bg-[#62275F] text-white"
+            >
+              <Plus className="w-5 h-5 mr-2" />
+              Create campaign
+            </Button>
+          </Can>
         )}
       </div>
 

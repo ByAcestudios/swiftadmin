@@ -1,29 +1,38 @@
+'use client';
+
 import Image from 'next/image';
-import { Bell, ChevronDown, Menu } from 'lucide-react';
-import { Button } from "@/components/ui/button";
+import Link from 'next/link';
+import { Bell, ChevronDown, Menu, Shield } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+} from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/contexts/AuthContext';
-import { useEffect, useState } from 'react';
+
+function displayName(user) {
+  if (!user) return 'Admin User';
+  const full = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+  return full || user.fullName || user.email || 'Admin User';
+}
+
+function roleLabel(user, isSuperAdmin) {
+  if (isSuperAdmin) return 'Super Admin';
+  if (user?.role === 'sub-admin') return 'Sub-admin';
+  if (user?.role === 'admin') return 'Admin';
+  return user?.role || 'User';
+}
 
 const Navbar = ({ toggleSidebar }) => {
-  const { logout, user } = useAuth();
-  const [userName, setUserName] = useState('User');
-
-  useEffect(() => {
-    if (user) {
-      setUserName(`${user.firstName} ${user.lastName}`);
-    }
-  }, [user]);
-
-  const handleLogout = () => {
-    logout();
-    // The router.push('/login') is handled in the AuthContext logout function
-  };
+  const { logout, user, isSuperAdmin } = useAuth();
+  const name = displayName(user);
+  const email = user?.email || '';
+  const role = roleLabel(user, isSuperAdmin);
 
   return (
     <nav className="bg-white shadow-md w-full fixed top-0 left-0 z-50">
@@ -41,21 +50,53 @@ const Navbar = ({ toggleSidebar }) => {
             </div>
           </div>
           <div className="flex items-center">
-            <Button variant="ghost" size="icon" className="mr-4">
+            <Button variant="ghost" size="icon" className="mr-2">
               <Bell className="h-5 w-5" />
             </Button>
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="flex items-center space-x-2">
-                  <div className="w-8 h-8 rounded-full bg-gray-300"></div>
-                  <span className="hidden md:inline">{userName}</span>
-                  <ChevronDown className="h-4 w-4" />
+                <Button variant="ghost" className="flex items-center gap-2 max-w-[240px]">
+                  <div className="w-8 h-8 rounded-full bg-[#62275F] text-white flex items-center justify-center text-sm font-semibold shrink-0">
+                    {name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="hidden sm:block text-left min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{name}</p>
+                    <p className="text-xs text-gray-500 truncate">{role}</p>
+                  </div>
+                  <ChevronDown className="h-4 w-4 shrink-0" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem>Profile</DropdownMenuItem>
-                <DropdownMenuItem>Settings</DropdownMenuItem>
-                <DropdownMenuItem onClick={handleLogout}>Logout</DropdownMenuItem>
+              <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuLabel className="font-normal">
+                  <div className="flex flex-col gap-1">
+                    <span className="font-medium text-gray-900">{name}</span>
+                    {email && <span className="text-xs text-gray-500 truncate">{email}</span>}
+                    <div className="flex gap-1 mt-1">
+                      <Badge variant="secondary" className="text-xs">
+                        {role}
+                      </Badge>
+                      {isSuperAdmin && (
+                        <Badge className="text-xs bg-[#62275F] hover:bg-[#62275F]">
+                          <Shield className="h-3 w-3 mr-1" />
+                          Full access
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                </DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {isSuperAdmin && (
+                  <>
+                    <DropdownMenuItem asChild>
+                      <Link href="/dashboard/team">Team & Roles</Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuItem asChild>
+                  <Link href="/dashboard/settings">Settings</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={logout}>Logout</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>

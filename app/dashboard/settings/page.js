@@ -9,6 +9,7 @@ import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover
 import { Switch } from "@/components/ui/switch";
 import { Edit, Save, Info, Clock, Calendar, HelpCircle, Smartphone, Mail, Plus, Trash2 } from 'lucide-react';
 import api from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
 
 /* eslint-disable react-hooks/exhaustive-deps */
 
@@ -25,6 +26,8 @@ const defaultAppVersions = () => ({
 });
 
 const SettingsPage = () => {
+  const { can } = useAuth();
+  const canEditSettings = can('settings', 'edit');
   const [settingsData, setSettingsData] = useState({
     config: {},
     settings: []
@@ -795,10 +798,20 @@ const SettingsPage = () => {
           );
         }
         
+        // For complex objects, show a read-only summary instead of JSON
+        if (typeof value === 'object' && value !== null) {
+          return (
+            <div className="bg-gray-50 rounded p-3 text-sm text-gray-600">
+              <p className="font-medium text-gray-700 mb-1">Complex setting</p>
+              <p className="text-xs">This setting has its own dedicated section below. Changes are managed there.</p>
+            </div>
+          );
+        }
+        
         // Regular string input
         return (
           <Input
-            value={typeof value === 'object' ? JSON.stringify(value, null, 2) : (value ?? '').toString()}
+            value={(value ?? '').toString()}
             onChange={(e) => handleChange(key, e.target.value)}
             disabled={!isEditing}
           />
@@ -807,6 +820,7 @@ const SettingsPage = () => {
   };
 
   const handleSectionEdit = (category) => {
+    if (!canEditSettings) return;
     setIsEditing(true);
   };
 
@@ -968,12 +982,18 @@ const SettingsPage = () => {
         </Button>
       </div>
 
-      {Object.entries(settingsData.config || {}).map(([category, categoryData]) => (
+      {Object.entries(settingsData.config || {})
+        .filter(([category]) => {
+          // Skip categories that have dedicated sections below
+          const skipCategories = ['adminNotifications', 'waybillConfig', 'appVersionControl'];
+          return !skipCategories.includes(category);
+        })
+        .map(([category, categoryData]) => (
         <div key={category} id={slugify(category)} className="bg-white rounded-lg shadow p-6 scroll-mt-6">
           <div className="flex justify-between items-center mb-4">
             <h2 className="text-xl font-semibold">{categoryData.label}</h2>
             <div>
-              {isEditing ? (
+              {canEditSettings && isEditing ? (
                 <Button 
                   onClick={handleSectionSave}
                   disabled={loading}
@@ -982,7 +1002,7 @@ const SettingsPage = () => {
                   <Save className="h-4 w-4 mr-2" />
                   Save Changes
                 </Button>
-              ) : (
+              ) : canEditSettings ? (
                 <Button 
                   onClick={() => handleSectionEdit(category)}
                   disabled={loading}
@@ -991,7 +1011,7 @@ const SettingsPage = () => {
                   <Edit className="h-4 w-4 mr-2" />
                   Edit Section
                 </Button>
-              )}
+              ) : null}
             </div>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -999,6 +1019,12 @@ const SettingsPage = () => {
               const existingSetting = settingsData.settings.find(s => 
                 s.key.toLowerCase() === key.toLowerCase()
               );
+              
+              // Skip settings that have dedicated sections
+              const skipKeys = ['adminNotificationSettings', 'waybillConfig', 'appVersionRider', 'appVersionUser'];
+              if (skipKeys.some(k => key.toLowerCase().includes(k.toLowerCase()))) {
+                return null;
+              }
               
               return (
                 <div key={key} className="space-y-2">
@@ -1073,7 +1099,7 @@ const SettingsPage = () => {
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-semibold">Delivery Restrictions</h2>
               <div>
-                {isEditing ? (
+                {canEditSettings && isEditing ? (
                   <Button 
                     onClick={handleSectionSave}
                     disabled={loading}
@@ -1082,7 +1108,7 @@ const SettingsPage = () => {
                     <Save className="h-4 w-4 mr-2" />
                     Save Changes
                   </Button>
-                ) : (
+                ) : canEditSettings ? (
                   <Button 
                     onClick={() => handleSectionEdit('deliveryRestrictions')}
                     disabled={loading}
@@ -1091,7 +1117,7 @@ const SettingsPage = () => {
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Section
                   </Button>
-                )}
+                ) : null}
               </div>
             </div>
             <div className="grid grid-cols-1 gap-6">
@@ -1141,7 +1167,7 @@ const SettingsPage = () => {
             App Version Control
           </h2>
           <div>
-            {versionControlEditing ? (
+            {canEditSettings && versionControlEditing ? (
               <Button
                 onClick={saveAllVersionControl}
                 disabled={versionControlSaving || !appVersions}
@@ -1149,12 +1175,12 @@ const SettingsPage = () => {
                 <Save className="h-4 w-4 mr-2" />
                 {versionControlSaving ? 'Saving...' : 'Save All'}
               </Button>
-            ) : (
+            ) : canEditSettings ? (
               <Button variant="outline" onClick={() => setVersionControlEditing(true)}>
                 <Edit className="h-4 w-4 mr-2" />
                 Edit
               </Button>
-            )}
+            ) : null}
           </div>
         </div>
         <p className="text-sm text-gray-500 mb-4">
@@ -1279,13 +1305,15 @@ const SettingsPage = () => {
             <Mail className="h-5 w-5" />
             Admin Notifications
           </h2>
-          <Button
-            onClick={saveAdminNotificationSettings}
-            disabled={adminNotificationSaving}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            {adminNotificationSaving ? 'Saving...' : 'Save'}
-          </Button>
+          {canEditSettings && (
+            <Button
+              onClick={saveAdminNotificationSettings}
+              disabled={adminNotificationSaving}
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {adminNotificationSaving ? 'Saving...' : 'Save'}
+            </Button>
+          )}
         </div>
         <p className="text-sm text-gray-500 mb-4">
           When auto-assign creates new ride requests, these admins can receive an email summary (order + riders). Turn off to disable for everyone.

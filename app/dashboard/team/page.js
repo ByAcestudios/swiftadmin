@@ -1,93 +1,47 @@
 'use client';
 
 import { useState } from 'react';
-import TeamMemberCard from './TeamMemberCard';
-import TeamMemberForm from './TeamMemberForm';
-import { Button } from "@/components/ui/button";
-import { Plus } from 'lucide-react';
+import { Shield, Users2 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import RolesPanel from './RolesPanel';
+import TeamPanel from './TeamPanel';
 
-// Demo data
-const demoTeamMembers = [
-  {
-    id: 1,
-    firstName: 'John',
-    lastName: 'Doe',
-    email: 'john.doe@example.com',
-    phoneNumber: '+234 123 456 7890',
-    position: 'Software Engineer',
-    gender: 'Male',
-    profilePhoto: 'https://randomuser.me/api/portraits/men/1.jpg',
-  },
-  {
-    id: 2,
-    firstName: 'Jane',
-    lastName: 'Smith',
-    email: 'jane.smith@example.com',
-    phoneNumber: '+234 098 765 4321',
-    position: 'Product Manager',
-    gender: 'Female',
-    profilePhoto: 'https://randomuser.me/api/portraits/women/2.jpg',
-  },
-  {
-    id: 3,
-    firstName: 'Mike',
-    lastName: 'Johnson',
-    email: 'mike.johnson@example.com',
-    phoneNumber: '+234 111 222 3333',
-    position: 'UX Designer',
-    gender: 'Male',
-    profilePhoto: 'https://randomuser.me/api/portraits/men/3.jpg',
-  },
-  {
-    id: 4,
-    firstName: 'Emily',
-    lastName: 'Brown',
-    email: 'emily.brown@example.com',
-    phoneNumber: '+234 444 555 6666',
-    position: 'Data Analyst',
-    gender: 'Female',
-    profilePhoto: 'https://randomuser.me/api/portraits/women/4.jpg',
-  },
-  // Add more demo members as needed
+const tabs = [
+  { id: 'team', label: 'Team Members', icon: Users2 },
+  { id: 'roles', label: 'Roles', icon: Shield },
 ];
 
-const TeamsPage = () => {
-  const [teamMembers, setTeamMembers] = useState(demoTeamMembers);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-
-  const handleCreateMember = (newMember) => {
-    setTeamMembers([...teamMembers, { ...newMember, id: teamMembers.length + 1 }]);
-    setIsModalOpen(false);
-  };
+export default function TeamPage() {
+  const [activeTab, setActiveTab] = useState('team');
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-800">Team Members</h1>
-        <Button onClick={() => setIsModalOpen(true)} className="bg-[#733E70] hover:bg-[#62275F] text-white">
-          <Plus className="w-5 h-5 mr-2" />
-          Create Member
-        </Button>
+      <div>
+        <h1 className="text-2xl font-bold text-gray-800">Team & Roles</h1>
+        <p className="text-sm text-gray-500 mt-1">
+          Manage sub-admin accounts and control which modules each role can access.
+        </p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-        {teamMembers.map((member) => (
-          <TeamMemberCard key={member.id} member={member} />
-        ))}
+      <div className="flex gap-2 border-b border-gray-200 pb-2">
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          const isActive = activeTab === tab.id;
+          return (
+            <Button
+              key={tab.id}
+              variant={isActive ? 'default' : 'ghost'}
+              onClick={() => setActiveTab(tab.id)}
+              className={isActive ? 'bg-[#62275F] hover:bg-[#733E70] text-white' : ''}
+            >
+              <Icon className="w-4 h-4 mr-2" />
+              {tab.label}
+            </Button>
+          );
+        })}
       </div>
 
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-            <TeamMemberForm
-              onSubmit={handleCreateMember}
-              onCancel={() => setIsModalOpen(false)}
-            />
-          </div>
-        </div>
-      )}
+      {activeTab === 'team' ? <TeamPanel /> : <RolesPanel />}
     </div>
   );
-};
-
-export default TeamsPage;
+}
