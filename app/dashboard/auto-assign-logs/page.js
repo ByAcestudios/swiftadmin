@@ -108,53 +108,6 @@ function DriverLocationCell({ rider }) {
   );
 }
 
-function DebugRiderBlock({ debugRider }) {
-  if (!debugRider) return null;
-  const lat = debugRider.latitude;
-  const lng = debugRider.longitude;
-  const hasCoords = lat != null && lng != null;
-  const exclusionReasons = Array.isArray(debugRider.exclusionReasons) ? debugRider.exclusionReasons : [];
-  const included = debugRider.wasIncludedInAssign === true;
-  return (
-    <div className="mb-3 p-3 rounded-md bg-amber-50 border border-amber-200">
-      <div className="text-sm font-medium text-amber-800 mb-2">Debug rider</div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs text-gray-700">
-        <span>Email: <span className="font-mono">{debugRider.email ?? '—'}</span></span>
-        <span>Rider ID: <span className="font-mono truncate inline-block max-w-[180px] align-bottom" title={debugRider.riderId}>{debugRider.riderId ?? '—'}</span></span>
-        <span>Distance to pickup: {debugRider.distanceToPickup != null ? `${debugRider.distanceToPickup} km` : '—'}</span>
-        <span>Included in assign: {debugRider.wasIncludedInAssign != null ? (debugRider.wasIncludedInAssign ? 'Yes' : 'No') : '—'}</span>
-        <span>Ride request ID: <span className="font-mono truncate inline-block max-w-[180px] align-bottom" title={debugRider.rideRequestId}>{debugRider.rideRequestId ?? '—'}</span></span>
-        {hasCoords && (
-          <span className="sm:col-span-2 flex items-center gap-1">
-            Location: {lat.toFixed(5)}, {lng.toFixed(5)}
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); openInGoogleMaps(lat, lng); }}
-              className="inline-flex items-center text-[#62275F] hover:underline"
-              title="Open in Google Maps"
-            >
-              <MapPin className="h-3.5 w-3.5 mr-0.5" />
-              <ExternalLink className="h-3 w-3" />
-            </button>
-          </span>
-        )}
-      </div>
-      {exclusionReasons.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-amber-200">
-          <div className="text-xs font-medium text-amber-800 mb-1">
-            {included ? 'Reasons (context):' : 'Exclusion reasons (why not assigned):'}
-          </div>
-          <ul className="list-disc list-inside text-xs text-gray-700 space-y-0.5">
-            {exclusionReasons.map((reason, i) => (
-              <li key={i}>{reason}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function AutoAssignLogsPage() {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -361,7 +314,6 @@ export default function AutoAssignLogsPage() {
                             <div className="mb-3 text-xs text-gray-600 flex items-center gap-1 flex-wrap">
                               <PickupLocationCell log={log} inline />
                             </div>
-                            {log.debugRider && <DebugRiderBlock debugRider={log.debugRider} />}
                             <div className="text-sm font-medium text-gray-700 mb-2">Riders</div>
                             <div className="overflow-x-auto">
                               <Table>
