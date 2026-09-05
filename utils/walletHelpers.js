@@ -66,3 +66,12 @@ export function getTxnAmountColor(type, amount) {
   }
   return n < 0 ? 'text-red-700' : 'text-green-700';
 }
+
+/** Normalize API transaction payloads that may be array | { data } | { rows }. */
+export function normalizeTransactions(raw) {
+  if (Array.isArray(raw)) return raw;
+  if (Array.isArray(raw?.data)) return raw.data;
+  if (Array.isArray(raw?.rows)) return raw.rows;
+  if (Array.isArray(raw?.transactions)) return raw.transactions;
+  return [];
+}

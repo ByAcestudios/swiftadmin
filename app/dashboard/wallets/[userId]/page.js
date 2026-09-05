@@ -47,6 +47,7 @@ import {
   formatDate,
   formatTxnType,
   getTxnAmountColor,
+  normalizeTransactions,
   MAX_ADMIN_TOPUP,
 } from '@/utils/walletHelpers';
 
@@ -313,13 +314,20 @@ export default function WalletDetailPage() {
       try {
         const res = await api.get(`/api/admin/wallets/${userId}`);
         const data = res.data;
+        const nested = data.data && typeof data.data === 'object' ? data.data : null;
         setPayload({
-          wallet: data.wallet || data.data?.wallet || data,
-          virtualAccount: data.virtualAccount || data.data?.virtualAccount || data.wallet?.virtualAccount,
+          wallet: data.wallet || nested?.wallet || (data.id ? data : null),
+          virtualAccount:
+            data.virtualAccount ||
+            nested?.virtualAccount ||
+            data.wallet?.virtualAccount ||
+            nested?.wallet?.virtualAccount,
           paystackDedicatedAccountId:
-            data.paystackDedicatedAccountId || data.data?.paystackDedicatedAccountId,
-          transactions: data.transactions || data.data?.transactions || [],
-          user: data.user || data.wallet?.user || data.data?.user,
+            data.paystackDedicatedAccountId || nested?.paystackDedicatedAccountId,
+          transactions: normalizeTransactions(
+            data.transactions ?? nested?.transactions ?? nested?.data
+          ),
+          user: data.user || data.wallet?.user || nested?.user || nested?.wallet?.user,
         });
       } catch (err) {
         toast({
@@ -341,7 +349,7 @@ export default function WalletDetailPage() {
   const wallet = payload?.wallet;
   const va = payload?.virtualAccount;
   const user = payload?.user || wallet?.user;
-  const transactions = payload?.transactions || [];
+  const transactions = normalizeTransactions(payload?.transactions);
 
   const runAction = async (fn, successMsg) => {
     setActionLoading(true);
