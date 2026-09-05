@@ -6,8 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from "@/components/ui/dialog";
 import { formatDate } from "@/utils/utils";
-import { getStatusColor } from "@/utils/settings";
-import { formatSettingsForSelect } from "@/utils/settings";
+import { getStatusColor, formatSettingLabel } from "@/utils/settings";
 import { Edit, AlertTriangle, Clock } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import api from '@/lib/api';
@@ -130,8 +129,12 @@ const OrderDetails = ({ order, onUpdate, onOrderUpdate }) => {
       setIsStatusDialogOpen(false);
       setReason('');
       
-      // Call the callback to refresh the order
-      const updatedOrder = response.data.order || { ...order, orderStatus: newStatus };
+      // Merge so partial API payloads don't wipe fields like itemCategory
+      const updatedOrder = {
+        ...order,
+        ...(response.data.order || {}),
+        orderStatus: response.data.order?.orderStatus || newStatus,
+      };
       if (onOrderUpdate) {
         onOrderUpdate(updatedOrder);
       }
@@ -361,7 +364,7 @@ const OrderDetails = ({ order, onUpdate, onOrderUpdate }) => {
           </p>
           <p className="flex justify-between">
             <span className="text-gray-600">Item Category:</span>
-            <span className="font-medium">{formatSettingsForSelect([order.itemCategory])[0].label}</span>
+            <span className="font-medium">{formatSettingLabel(order.itemCategory)}</span>
           </p>
           <p className="flex justify-between items-center">
             <span className="text-gray-600">Payment Status:</span>

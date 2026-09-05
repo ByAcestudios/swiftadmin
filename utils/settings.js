@@ -51,16 +51,36 @@ export const clearCategoriesCache = () => {
 };
 
 // Enhanced formatting function
+export const formatSettingLabel = (item) => {
+  if (item == null || item === '') return '—';
+  const raw =
+    typeof item === 'string'
+      ? item
+      : item.value ?? item.key ?? item.name ?? item.label ?? '';
+  if (!raw) return '—';
+  return String(raw)
+    .split(/[-_]/)
+    .map((word) => (word ? word.charAt(0).toUpperCase() + word.slice(1) : ''))
+    .filter(Boolean)
+    .join(' ');
+};
+
 export const formatSettingsForSelect = (items) => {
+  const list = Array.isArray(items) ? items : [];
   return [
     { value: 'all', label: 'All' },
-    ...items.map(item => ({
-      value: item,
-      label: item
-        .split('-')
-        .map(word => word.charAt(0).toUpperCase() + word.slice(1))
-        .join(' ')
-    }))
+    ...list
+      .filter((item) => item != null && item !== '')
+      .map((item) => {
+        const value =
+          typeof item === 'string'
+            ? item
+            : item.value ?? item.key ?? item.name ?? String(item);
+        return {
+          value,
+          label: formatSettingLabel(item),
+        };
+      }),
   ];
 };
 

@@ -75,3 +75,12 @@ export function normalizeTransactions(raw) {
   if (Array.isArray(raw?.transactions)) return raw.transactions;
   return [];
 }
+
+/** Pick merchant balance for a currency from paystackMerchantBalance[]. */
+export function getPaystackBalance(balances, currency = 'NGN') {
+  if (!Array.isArray(balances) || !balances.length) return null;
+  const match = balances.find(
+    (b) => String(b.currency || '').toUpperCase() === String(currency).toUpperCase()
+  );
+  return match ?? balances[0];
+}

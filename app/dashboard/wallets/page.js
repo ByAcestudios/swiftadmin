@@ -12,7 +12,24 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Landmark, Search, X, ChevronRight, ExternalLink } from 'lucide-react';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+} from '@/components/ui/card';
+import {
+  Landmark,
+  Search,
+  X,
+  ChevronRight,
+  ExternalLink,
+  RefreshCw,
+  Users,
+  Building2,
+  TrendingUp,
+  TrendingDown,
+} from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import api from '@/lib/api';
 import Pagination from '../users/Pagination';
@@ -24,18 +41,144 @@ import {
   getVaStatusColor,
   formatUserName,
   formatDate,
+  getPaystackBalance,
 } from '@/utils/walletHelpers';
+
+function SummaryCard({ title, value, subtitle, icon: Icon, valueClassName }) {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardDescription className="text-sm font-medium">{title}</CardDescription>
+        {Icon && <Icon className="h-4 w-4 text-muted-foreground" />}
+      </CardHeader>
+      <CardContent>
+        <p className={`text-2xl font-bold tabular-nums ${valueClassName || ''}`}>{value}</p>
+        {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
+function LedgerSummary({ summary, loading, onRefresh }) {
+  const ledger = summary?.ledger || {};
+  const paystack = getPaystackBalance(
+    summary?.paystackMerchantBalance,
+    summary?.currency || 'NGN'
+  );
+  const byStatus = Array.isArray(ledger.byStatus) ? ledger.byStatus : [];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+            Ledger summary
+          </h2>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            Customer money across Swift wallets vs Paystack merchant balance
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={onRefresh}
+          disabled={loading}
+        >
+          <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+          Refresh
+        </Button>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          title="Customer liability"
+          icon={Users}
+          value={loading && !summary ? '…' : formatNgn(ledger.customerLiability ?? ledger.totalBalance)}
+          subtitle={
+            ledger.walletCount != null
+              ? `${Number(ledger.walletCount).toLocaleString()} wallets`
+              : 'Sum of all wallet balances'
+          }
+        />
+        <SummaryCard
+          title="Paystack balance"
+          icon={Building2}
+          value={
+            loading && !summary
+              ? '…'
+              : paystack?.balance != null
+                ? formatNgn(paystack.balance)
+                : '—'
+          }
+          subtitle={
+            paystack?.currency
+              ? `Merchant balance (${paystack.currency})`
+              : 'Merchant balance unavailable'
+          }
+        />
+        <SummaryCard
+          title="Lifetime funded"
+          icon={TrendingUp}
+          valueClassName="text-green-700"
+          value={loading && !summary ? '…' : formatNgn(ledger.lifetimeFunded)}
+          subtitle="Total credits into wallets"
+        />
+        <SummaryCard
+          title="Lifetime spent"
+          icon={TrendingDown}
+          valueClassName="text-red-700"
+          value={loading && !summary ? '…' : formatNgn(ledger.lifetimeSpent)}
+          subtitle="Total debits from wallets"
+        />
+      </div>
+
+      {byStatus.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          {byStatus.map((row) => (
+            <Badge
+              key={row.status}
+              variant="outline"
+              className={`${getWalletStatusColor(row.status)} border-0 gap-1.5 font-normal`}
+            >
+              <span className="font-medium">{formatWalletStatus(row.status)}</span>
+              <span>· {Number(row.walletCount || 0).toLocaleString()} wallets</span>
+              <span>· {formatNgn(row.totalBalance)}</span>
+            </Badge>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function WalletsListPage() {
   const { toast } = useToast();
   const [wallets, setWallets] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [summary, setSummary] = useState(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [searchInput, setSearchInput] = useState('');
+
+  const fetchSummary = useCallback(async () => {
+    try {
+      setSummaryLoading(true);
+      const res = await api.get('/api/admin/wallets/summary');
+      setSummary(res.data?.data || res.data);
+    } catch (err) {
+      toast({
+        variant: 'destructive',
+        description: err.response?.data?.message || 'Failed to load wallet summary.',
+      });
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [toast]);
 
   const fetchWallets = useCallback(
     async (page = 1) => {
@@ -66,6 +209,10 @@ export default function WalletsListPage() {
     },
     [statusFilter, search, toast]
   );
+
+  useEffect(() => {
+    fetchSummary();
+  }, [fetchSummary]);
 
   useEffect(() => {
     fetchWallets(currentPage);
@@ -103,6 +250,12 @@ export default function WalletsListPage() {
           </Link>
         </Button>
       </div>
+
+      <LedgerSummary
+        summary={summary}
+        loading={summaryLoading}
+        onRefresh={fetchSummary}
+      />
 
       <form onSubmit={handleSearch} className="flex flex-wrap gap-3 items-end">
         <div className="flex-1 min-w-[220px]">
