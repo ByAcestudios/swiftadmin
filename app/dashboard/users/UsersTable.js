@@ -71,6 +71,7 @@ export function UsersTable({ users, onUserAction }) {
             <TableHead>Role</TableHead>
             <TableHead>Status</TableHead>
             <TableHead>Verified</TableHead>
+            <TableHead>Joined</TableHead>
             <TableHead className="text-right">Actions</TableHead>
           </TableRow>
         </TableHeader>
@@ -115,6 +116,15 @@ export function UsersTable({ users, onUserAction }) {
                 >
                   {user.isVerified ? 'Verified' : 'Unverified'}
                 </Badge>
+              </TableCell>
+              <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                {user.createdAt
+                  ? new Date(user.createdAt).toLocaleDateString(undefined, {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                    })
+                  : '—'}
               </TableCell>
               <TableCell className="px-6 py-4 whitespace-nowrap text-right">
                 <DropdownMenu>
