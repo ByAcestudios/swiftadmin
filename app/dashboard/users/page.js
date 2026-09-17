@@ -197,7 +197,7 @@ const UsersPage = () => {
         { key: 'role', label: 'Role' },
         { key: 'status', label: 'Status' },
         { key: 'isVerified', label: 'Verified' },
-        { key: 'createdAt', label: 'Joined' },
+        { key: 'joinedDate', label: 'Joined' },
       ];
 
       if (format === 'excel') {

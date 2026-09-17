@@ -118,8 +118,8 @@ export function UsersTable({ users, onUserAction }) {
                 </Badge>
               </TableCell>
               <TableCell className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
-                {user.createdAt
-                  ? new Date(user.createdAt).toLocaleDateString(undefined, {
+                {(user.joinedDate || user.createdAt)
+                  ? new Date(user.joinedDate || user.createdAt).toLocaleDateString(undefined, {
                       year: 'numeric',
                       month: 'short',
                       day: 'numeric',
