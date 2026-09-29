@@ -159,8 +159,8 @@ export const AuthProvider = ({ children }) => {
 
   const can = useCallback(
     (moduleKey, action = 'view') =>
-      hasPermission(effectiveAdmin?.permissions, moduleKey, action),
-    [effectiveAdmin?.permissions]
+      isSuperAdmin || hasPermission(effectiveAdmin?.permissions, moduleKey, action),
+    [effectiveAdmin?.permissions, isSuperAdmin]
   );
 
   const hasModule = useCallback(
